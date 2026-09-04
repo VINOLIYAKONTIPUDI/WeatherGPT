@@ -1,9 +1,8 @@
 import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { MapPin, Compass } from 'lucide-react';
+import { Compass, MapPin } from 'lucide-react';
 
-// Fix Leaflet default icon paths in React Vite
 const customMarkerIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -16,13 +15,27 @@ const customMarkerIcon = new L.Icon({
 function MapRecenter({ center }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, 10);
+    if (center && center[0] && center[1]) {
+      map.setView(center, 10);
+    }
   }, [center, map]);
   return null;
 }
 
 export default function WeatherMap({ location, currentWeather }) {
-  const position = [location?.latitude || 17.3850, location?.longitude || 78.4867];
+  if (!location || !location.latitude || !location.longitude) {
+    return (
+      <div className="glass-card rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 mb-8 text-center">
+        <div className="flex flex-col items-center justify-center py-6 gap-2">
+          <Compass className="w-8 h-8 text-cyan-400 opacity-60" />
+          <h3 className="text-lg font-bold text-white">Interactive Location Map</h3>
+          <p className="text-xs text-slate-400">Select your active location to anchor map telemetry.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const position = [location.latitude, location.longitude];
 
   return (
     <div className="glass-card rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 mb-8">
@@ -34,7 +47,7 @@ export default function WeatherMap({ location, currentWeather }) {
           <p className="text-slate-400 text-xs mt-0.5">Live coordinates & weather station anchor</p>
         </div>
         <div className="text-xs font-semibold text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/20">
-          📍 {location?.name || 'Hyderabad'} ({position[0].toFixed(2)}°, {position[1].toFixed(2)}°)
+          📍 {location.name || location.city || 'Active Location'} ({position[0].toFixed(2)}°, {position[1].toFixed(2)}°)
         </div>
       </div>
 
@@ -47,7 +60,7 @@ export default function WeatherMap({ location, currentWeather }) {
           <Marker position={position} icon={customMarkerIcon}>
             <Popup>
               <div className="text-slate-900 p-1">
-                <strong className="text-sm font-bold block">{location?.name || 'Selected Location'}</strong>
+                <strong className="text-sm font-bold block">{location.name || location.city || 'Selected Location'}</strong>
                 {currentWeather && (
                   <span className="text-xs font-medium text-slate-700 block mt-1">
                     🌡️ {Math.round(currentWeather.temperature)}°C — {currentWeather.condition}

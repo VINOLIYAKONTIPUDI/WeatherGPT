@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Navigation, Loader2, AlertCircle, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { searchLocations, reverseGeocode } from '../services/api';
+import { getTranslation } from '../constants/languages';
 
 const QUICK_CITIES = [
-  { name: 'Hyderabad', lat: 17.3850, lon: 78.4867 },
-  { name: 'Vijayawada', lat: 16.5062, lon: 80.6480 },
-  { name: 'Delhi', lat: 28.6139, lon: 77.2090 },
-  { name: 'Mumbai', lat: 19.0760, lon: 72.8777 },
-  { name: 'Bengaluru', lat: 12.9716, lon: 77.5946 },
-  { name: 'Tadepalligudem', lat: 16.8123, lon: 81.5284 },
+  { name: 'Vijayawada', lat: 16.5062, lon: 80.6480, admin1: 'Andhra Pradesh' },
+  { name: 'Tadepalligudem', lat: 16.8123, lon: 81.5284, admin1: 'Andhra Pradesh' },
+  { name: 'Hyderabad', lat: 17.3850, lon: 78.4867, admin1: 'Telangana' },
+  { name: 'Visakhapatnam', lat: 17.6868, lon: 83.2185, admin1: 'Andhra Pradesh' },
+  { name: 'Delhi', lat: 28.6139, lon: 77.2090, admin1: 'Delhi' },
+  { name: 'Mumbai', lat: 19.0760, lon: 72.8777, admin1: 'Maharashtra' },
+  { name: 'Bengaluru', lat: 12.9716, lon: 77.5946, admin1: 'Karnataka' },
 ];
 
-export default function LocationSearch({ currentLocation, onLocationSelect }) {
+export default function LocationSearch({ currentLocation, onLocationSelect, language = 'en-IN' }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -39,13 +41,19 @@ export default function LocationSearch({ currentLocation, onLocationSelect }) {
 
   const handleSelect = (loc) => {
     setLocationStatus(null);
-    onLocationSelect({
+    const locationObj = {
       latitude: loc.latitude,
       longitude: loc.longitude,
-      name: loc.name,
+      city: loc.city || loc.name,
+      state: loc.state || loc.admin1 || '',
       country: loc.country || 'India',
-      admin1: loc.admin1 || ''
-    });
+      displayName: loc.displayName || loc.display_name || `${loc.name}, ${loc.admin1 || loc.country || 'India'}`,
+      source: loc.source || 'search',
+      name: loc.name || loc.city,
+      admin1: loc.admin1 || loc.state || ''
+    };
+
+    onLocationSelect(locationObj);
     setQuery('');
     setShowDropdown(false);
   };
@@ -80,19 +88,25 @@ export default function LocationSearch({ currentLocation, onLocationSelect }) {
           // Perform Reverse Geocoding
           const geoResult = await reverseGeocode(lat, lon);
           
-          const resolvedName = geoResult.name || 'Current Location';
+          const resolvedName = geoResult.city || geoResult.name || 'Current Location';
           setLocationStatus({
             type: 'success',
             text: `Location detected: ${resolvedName}`
           });
 
-          onLocationSelect({
+          const locationObj = {
             latitude: lat,
             longitude: lon,
-            name: resolvedName,
+            city: geoResult.city || geoResult.name || 'Current Location',
+            state: geoResult.state || geoResult.admin1 || '',
             country: geoResult.country || 'India',
-            admin1: geoResult.admin1 || ''
-          });
+            displayName: geoResult.displayName || geoResult.display_name || `${resolvedName}, ${geoResult.country || 'India'}`,
+            source: 'gps',
+            name: resolvedName,
+            admin1: geoResult.admin1 || geoResult.state || ''
+          };
+
+          onLocationSelect(locationObj);
         } catch (err) {
           console.error('Error during reverse geocoding:', err);
           setLocationStatus({
@@ -150,7 +164,7 @@ export default function LocationSearch({ currentLocation, onLocationSelect }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => query.length >= 2 && setShowDropdown(true)}
-              placeholder="Search city (e.g. Hyderabad, Vijayawada, Delhi)..."
+              placeholder={getTranslation(language, 'searchPlaceholder')}
               className="w-full pl-11 pr-10 py-3 rounded-2xl glass-input text-white text-sm focus:outline-none placeholder-slate-500"
             />
             {isSearching && (
@@ -180,13 +194,14 @@ export default function LocationSearch({ currentLocation, onLocationSelect }) {
           onClick={handleUseMyLocation}
           disabled={isLocating}
           className="w-full sm:w-auto px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700/80 text-cyan-400 text-xs font-semibold border border-cyan-500/30 flex items-center justify-center gap-2 transition-all shrink-0"
+          id="btn-use-my-location"
         >
           {isLocating ? (
             <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
           ) : (
             <Navigation className="w-4 h-4 text-cyan-400 fill-cyan-400/20" />
           )}
-          <span>{isLocating ? 'Locating...' : 'Use My Location'}</span>
+          <span>{isLocating ? 'Locating...' : getTranslation(language, 'useMyLocation')}</span>
         </button>
       </div>
 
@@ -225,11 +240,11 @@ export default function LocationSearch({ currentLocation, onLocationSelect }) {
 
       {/* Quick City Pills */}
       <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
-        <span className="text-slate-400 font-medium">Popular Cities:</span>
+        <span className="text-slate-400 font-medium">Quick Cities:</span>
         {QUICK_CITIES.map((city, idx) => (
           <button
             key={idx}
-            onClick={() => handleSelect({ latitude: city.lat, longitude: city.lon, name: city.name, country: 'India' })}
+            onClick={() => handleSelect({ latitude: city.lat, longitude: city.lon, name: city.name, admin1: city.admin1, country: 'India', source: 'search' })}
             className={`px-3 py-1 rounded-full border transition-all ${
               currentLocation?.name?.toLowerCase() === city.name.toLowerCase()
                 ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 font-bold'

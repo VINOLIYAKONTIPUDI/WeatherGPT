@@ -5,8 +5,13 @@ class LocationCoordinates(BaseModel):
     latitude: float
     longitude: float
     name: Optional[str] = "Selected Location"
+    city: Optional[str] = None
+    state: Optional[str] = None
     country: Optional[str] = "India"
     admin1: Optional[str] = None  # State / Region
+    displayName: Optional[str] = None
+    display_name: Optional[str] = None
+    source: Optional[str] = "search" # 'gps' | 'search'
 
 class WeatherCurrent(BaseModel):
     temperature: float
@@ -81,11 +86,13 @@ class ChatResponse(BaseModel):
     answer: str
     language: str
     intent: str
-    location: LocationCoordinates
+    location: Optional[LocationCoordinates] = None
     weather: Optional[Dict[str, Any]] = None
     advisory: Optional[AdvisoryItem] = None
     suggested_followups: List[str] = []
     is_fallback: bool = False
+    is_location_required: bool = False
+    explicit_override: bool = False
 
 class LocationSearchResult(BaseModel):
     id: Optional[int] = None
@@ -95,3 +102,4 @@ class LocationSearchResult(BaseModel):
     country: Optional[str] = None
     admin1: Optional[str] = None
     display_name: str
+

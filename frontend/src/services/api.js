@@ -31,7 +31,8 @@ export async function sendChatMessage(message, location, language = 'en-IN', con
   }
 }
 
-export async function fetchWeatherAlerts(lat = 17.385, lon = 78.4867, name = 'Selected Location') {
+export async function fetchWeatherAlerts(lat, lon, name = 'Selected Location') {
+  if (lat === undefined || lon === undefined || lat === null || lon === null) return null;
   try {
     const res = await fetch(`${API_BASE}/alerts?lat=${lat}&lon=${lon}&name=${encodeURIComponent(name)}`);
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);

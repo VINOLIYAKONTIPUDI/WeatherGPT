@@ -6,6 +6,7 @@ from app.models.schemas import ChatRequest, ChatResponse, WeatherForecastRespons
 from app.services.weather_service import WeatherService
 from app.services.geocoding_service import GeocodingService
 from app.services.advisory_service import AdvisoryService
+from app.constants.languages import get_location_required_message
 
 logger = logging.getLogger(__name__)
 
@@ -15,17 +16,22 @@ class AIService:
         text_lower = text.lower()
         
         # Check standard Indian city names directly in text
-        cities = ["Hyderabad", "Vijayawada", "Delhi", "Mumbai", "Bengaluru", "Bangalore", "Tadepalligudem", "Chennai", "Kolkata", "Visakhapatnam", "Vizag", "Pune", "Jaipur", "Ahmedabad", "Lucknow"]
+        cities = [
+            "Hyderabad", "Vijayawada", "Delhi", "Mumbai", "Bengaluru", "Bangalore",
+            "Tadepalligudem", "Chennai", "Kolkata", "Visakhapatnam", "Vizag", "Pune",
+            "Jaipur", "Ahmedabad", "Lucknow", "Bhimavaram", "Guntur", "Tirupati",
+            "Kakinada", "Rajahmundry", "Nellore", "Anantapur", "Warangal"
+        ]
         for c in cities:
             if c.lower() in text_lower:
                 return "Bengaluru" if c.lower() == "bangalore" else ("Visakhapatnam" if c.lower() == "vizag" else c)
         
         # Pattern match "in <City>", "at <City>", "for <City>"
-        in_match = re.search(r'\b(?:in|at|for|near|of)\s+([a-zA-Z\s]+?)(?:\s+today|\s+tomorrow|\s+this|\s+now|\?|\.|$)', text, re.IGNORECASE)
+        in_match = re.search(r'\b(?:in|at|for|near|of|around)\s+([a-zA-Z\s]+?)(?:\s+today|\s+tomorrow|\s+this|\s+now|\?|\.|$|,)', text, re.IGNORECASE)
         if in_match:
             candidate = in_match.group(1).strip()
-            ignored = ["the", "my area", "here", "college", "work", "office", "home", "india", "my location"]
-            if candidate and candidate.lower() not in ignored:
+            ignored = ["the", "my area", "here", "college", "work", "office", "home", "india", "my location", "location", "area"]
+            if candidate and candidate.lower() not in ignored and len(candidate) > 2:
                 return candidate.title()
                 
         return None
@@ -39,9 +45,9 @@ class AIService:
             return "precipitation"
         if any(w in t for w in ["compare", "difference", "versus", "vs", "పోల్చండి", "తారతమ్యం", "तुलना"]):
             return "comparison"
-        if any(w in t for w in ["hot", "cold", "temperature", "degree", "heat", "లేదా", "వేడి", "ఉష్ణోగ్రత", "गर्मी", "तापमान", "ठंड"]):
+        if any(w in t for w in ["hot", "cold", "temperature", "degree", "heat", "వేడి", "ఉష్ణోగ్రత", "गर्मी", "तापमान", "ठंड"]):
             return "temperature"
-        if any(w in t for w in ["humidity", "humid", "moisture", "తేమ", "నమస్కారం", "नमी"]):
+        if any(w in t for w in ["humidity", "humid", "moisture", "తేమ", "नमी"]):
             return "humidity"
         if any(w in t for w in ["wind", "storm", "blow", "breeze", "గాలి", "హవా", "हवा", "आंधी"]):
             return "wind"
@@ -53,7 +59,7 @@ class AIService:
             return "travel_advisory"
         if any(w in t for w in ["run", "jog", "walk", "outdoor", "picnic", "cricket", "match", "వాకింగ్", "ఆరుబయట", "सैर"]):
             return "outdoor_activity"
-        if any(w in t for w in ["tomorrow", "weekend", "next week", "day after", "రేపు", "కల్", "कल"]):
+        if any(w in t for w in ["tomorrow", "weekend", "next week", "day after", "రేపు", "कल"]):
             return "forecast"
         return "current_weather"
 
@@ -65,7 +71,9 @@ class AIService:
         # 1. Session context & location resolution
         extracted_city = cls.extract_location_from_text(user_msg)
         
-        target_location: LocationCoordinates
+        target_location: Optional[LocationCoordinates] = None
+        explicit_override = False
+
         if extracted_city:
             search_results = await GeocodingService.search_location(extracted_city)
             if search_results:
@@ -74,21 +82,48 @@ class AIService:
                     latitude=best.latitude,
                     longitude=best.longitude,
                     name=best.name,
-                    country=best.country,
-                    admin1=best.admin1
+                    city=best.name,
+                    country=best.country or "India",
+                    admin1=best.admin1 or "",
+                    state=best.admin1 or "",
+                    displayName=best.display_name,
+                    source="search"
                 )
+                # Check if this explicit city differs from saved location
+                if request.location and request.location.name and request.location.name.lower() != best.name.lower():
+                    explicit_override = True
             else:
-                target_location = request.location or LocationCoordinates(latitude=17.3850, longitude=78.4867, name=extracted_city, country="India", admin1="")
-        elif request.location and request.location.latitude != 0:
+                if request.location and request.location.latitude != 0:
+                    target_location = request.location
+        elif request.location and request.location.latitude != 0 and request.location.longitude != 0:
             target_location = request.location
         else:
-            target_location = LocationCoordinates(latitude=17.3850, longitude=78.4867, name="Hyderabad", country="India", admin1="Telangana")
+            target_location = None
+
+        # STRICT VALIDATION: If location is missing, return Location Required response!
+        if target_location is None:
+            return ChatResponse(
+                answer=get_location_required_message(lang),
+                language=lang,
+                intent="location_required",
+                location=None,
+                weather=None,
+                advisory=None,
+                suggested_followups=[
+                    "Use My Location",
+                    "Search Location"
+                ],
+                is_fallback=False,
+                is_location_required=True,
+                explicit_override=False
+            )
 
         # 2. Get Live Weather Data for target location
+        loc_name = target_location.city or target_location.name or "Selected Location"
         weather_data = await WeatherService.get_forecast(
             latitude=target_location.latitude,
             longitude=target_location.longitude,
-            location_name=target_location.name or "Selected Location"
+            location_name=loc_name
         )
 
         # 3. Advisories
@@ -102,7 +137,6 @@ class AIService:
         cur = weather_data.current
         hourly = weather_data.hourly
         daily = weather_data.daily
-        loc_name = weather_data.location.name or "your location"
         
         today = daily[0] if len(daily) > 0 else None
         tomorrow = daily[1] if len(daily) > 1 else daily[0]
@@ -117,7 +151,10 @@ class AIService:
         answer = ""
         suggested_followups: List[str] = []
 
-        if lang == "te-IN":
+        is_te = lang.startswith("te")
+        is_hi = lang.startswith("hi")
+
+        if is_te:
             # Telugu Response Generation
             if intent in ["umbrella", "precipitation"]:
                 pop = max(tomorrow.precipitation_probability_max, max_pop_24h)
@@ -149,7 +186,7 @@ class AIService:
                 "ఉష్ణోగ్రత ఎంత ఉంటుంది?"
             ]
 
-        elif lang == "hi-IN":
+        elif is_hi:
             # Hindi Response Generation
             if intent in ["umbrella", "precipitation"]:
                 pop = max(tomorrow.precipitation_probability_max, max_pop_24h)
@@ -256,5 +293,7 @@ class AIService:
             weather=weather_summary,
             advisory=top_advisory,
             suggested_followups=suggested_followups,
-            is_fallback=weather_data.is_fallback
+            is_fallback=weather_data.is_fallback,
+            is_location_required=False,
+            explicit_override=explicit_override
         )

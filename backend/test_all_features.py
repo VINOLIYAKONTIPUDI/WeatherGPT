@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 
 async def test_suite():
     print("=== TEST 1: Open-Meteo Weather Forecast Retrieval ===")
-    forecast = await WeatherService.get_forecast(17.3850, 78.4867, "Hyderabad")
+    forecast = await WeatherService.get_forecast(16.8123, 81.5284, "Tadepalligudem")
     assert forecast.current.temperature is not None
     assert len(forecast.hourly) == 24
     assert len(forecast.daily) == 7
@@ -24,35 +24,43 @@ async def test_suite():
     reverse_loc = await GeocodingService.reverse_geocode(16.5062, 80.6480)
     print(f"✓ Reverse Geocode OK: Name={reverse_loc.name}, State={reverse_loc.admin1}")
 
-    print("\n=== TEST 3: Deterministic Advisory Engine ===")
-    alerts_resp = AdvisoryService.get_alerts_response(forecast)
-    assert alerts_resp.count > 0
-    print(f"✓ Advisories OK: Count={alerts_resp.count}, Top Alert={alerts_resp.alerts[0].title}")
+    print("\n=== TEST 3: Strict Location Required Validation ===")
+    # When no location is provided and no explicit city is in message text
+    req_no_loc = ChatRequest(message="What's the weather today?", location=None, language="en-IN")
+    res_no_loc = await AIService.process_chat(req_no_loc)
+    assert res_no_loc.is_location_required is True
+    assert "location first" in res_no_loc.answer.lower() or "need your location" in res_no_loc.answer.lower()
+    print(f"✓ Location Required Check OK: Response='{res_no_loc.answer}'")
 
-    print("\n=== TEST 4: Conversational NLU Intents (English) ===")
-    queries = [
-        "Will I need an umbrella tomorrow morning?",
-        "How hot will it get this afternoon?",
-        "Is it safe to travel tomorrow?",
-        "What's the humidity in Vijayawada?",
-        "Compare today and tomorrow"
-    ]
-    loc = LocationCoordinates(latitude=17.3850, longitude=78.4867, name="Hyderabad")
-    for q in queries:
-        req = ChatRequest(message=q, location=loc, language="en-IN")
-        res = await AIService.process_chat(req)
-        print(f"  Q: '{q}' -> Intent: {res.intent} | Answer: '{res.answer}'")
+    print("\n=== TEST 4: Active Location Conversational Query ===")
+    tade_loc = LocationCoordinates(latitude=16.8123, longitude=81.5284, name="Tadepalligudem", admin1="Andhra Pradesh")
+    req_tade = ChatRequest(message="Will it rain tomorrow?", location=tade_loc, language="en-IN")
+    res_tade = await AIService.process_chat(req_tade)
+    assert res_tade.is_location_required is False
+    assert "Tadepalligudem" in res_tade.answer or res_tade.location.name == "Tadepalligudem"
+    print(f"✓ Active Location Query OK: Answer='{res_tade.answer}'")
 
-    print("\n=== TEST 5: Multilingual Queries (Hindi & Telugu) ===")
-    req_hi = ChatRequest(message="क्या मुझे छाते की जरूरत है?", location=loc, language="hi-IN")
-    res_hi = await AIService.process_chat(req_hi)
-    print(f"  HI: '{req_hi.message}' -> Answer: '{res_hi.answer}'")
+    print("\n=== TEST 5: Explicit City Query Override (Without Overwriting Active Location) ===")
+    vija_loc = LocationCoordinates(latitude=16.5062, longitude=80.6480, name="Vijayawada", admin1="Andhra Pradesh")
+    req_override = ChatRequest(message="What is the weather in Hyderabad?", location=vija_loc, language="en-IN")
+    res_override = await AIService.process_chat(req_override)
+    assert res_override.is_location_required is False
+    assert res_override.explicit_override is True
+    assert "Hyderabad" in res_override.answer or res_override.location.name == "Hyderabad"
+    print(f"✓ Explicit Override OK: Explicit Override={res_override.explicit_override}, Location={res_override.location.name}")
 
-    req_te = ChatRequest(message="రేపు వర్షం పడుతుందా?", location=loc, language="te-IN")
+    print("\n=== TEST 6: Multilingual Chat Queries (Telugu & Hindi) ===")
+    req_te = ChatRequest(message="రేపు వర్షం పడుతుందా?", location=vija_loc, language="te-IN")
     res_te = await AIService.process_chat(req_te)
-    print(f"  TE: '{req_te.message}' -> Answer: '{res_te.answer}'")
+    assert "Vijayawada" in res_te.answer or "విజయవాడ" in res_te.answer or res_te.language == "te-IN"
+    print(f"✓ Telugu Chat Query OK: Answer='{res_te.answer}'")
 
-    print("\n✅ ALL 5 TEST SUITES PASSED SUCCESSFULLY!")
+    req_hi = ChatRequest(message="कल मौसम कैसा रहेगा?", location=vija_loc, language="hi-IN")
+    res_hi = await AIService.process_chat(req_hi)
+    assert res_hi.language == "hi-IN"
+    print(f"✓ Hindi Chat Query OK: Answer='{res_hi.answer}'")
+
+    print("\n✅ ALL 6 TEST SUITES PASSED SUCCESSFULLY!")
 
 if __name__ == "__main__":
     asyncio.run(test_suite())

@@ -8,8 +8,8 @@ router = APIRouter(prefix="/api/alerts", tags=["Weather Alerts & Advisories"])
 @router.get("", response_model=AlertsResponse)
 @router.post("", response_model=AlertsResponse)
 async def get_weather_alerts(
-    lat: float = Query(17.3850, description="Latitude"),
-    lon: float = Query(78.4867, description="Longitude"),
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
     name: str = Query("Selected Location", description="Location Name")
 ):
     try:
@@ -17,3 +17,4 @@ async def get_weather_alerts(
         return AdvisoryService.get_alerts_response(forecast)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+

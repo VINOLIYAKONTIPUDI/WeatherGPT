@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Cloud, CloudRain, CloudLightning, Wind, Droplets, Umbrella, SunMedium, Compass, Sunrise, Sunset } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudLightning, Wind, Droplets, Umbrella, SunMedium, Compass, Sunrise, Sunset, AlertCircle } from 'lucide-react';
 
 function getWeatherIcon(condition = '', isDay = 1) {
   const cond = condition.toLowerCase();
@@ -10,13 +10,35 @@ function getWeatherIcon(condition = '', isDay = 1) {
 }
 
 export default function WeatherCard({ weatherData, location }) {
-  if (!weatherData) return null;
+  if (!weatherData) {
+    return (
+      <div className="glass-card rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 text-center mb-8">
+        <div className="flex flex-col items-center justify-center py-6 gap-3">
+          <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h3 className="text-lg font-bold text-white">📍 Location Required</h3>
+          <p className="text-sm text-slate-400 max-w-md">
+            Please click "Use My Location" or search for a city above to view live weather data and telemetry.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const current = weatherData.current;
   const loc = weatherData.location || location;
 
   return (
     <div className="glass-card rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 relative overflow-hidden mb-8">
+      {/* Demo Fallback Warning Banner */}
+      {weatherData.is_fallback && (
+        <div className="mb-4 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>⚠️ Live weather temporarily unavailable for {loc?.name || 'this location'}. Showing demo forecast.</span>
+        </div>
+      )}
+
       {/* Background Subtle Gradient */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -24,8 +46,8 @@ export default function WeatherCard({ weatherData, location }) {
         {/* Left Column: Location & Main Temp */}
         <div>
           <div className="flex items-center gap-2 text-slate-400 text-sm font-medium mb-1">
-            <span className="text-cyan-400 font-bold">📍 {loc?.name || 'Selected Location'}</span>
-            {loc?.admin1 && <span>, {loc.admin1}</span>}
+            <span className="text-cyan-400 font-bold">📍 {loc?.name || loc?.city || 'Selected Location'}</span>
+            {(loc?.admin1 || loc?.state) && <span>, {loc.admin1 || loc.state}</span>}
             {loc?.country && <span>, {loc.country}</span>}
           </div>
           

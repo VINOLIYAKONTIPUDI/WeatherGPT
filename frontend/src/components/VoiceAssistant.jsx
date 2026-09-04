@@ -1,41 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, Square, Volume2, RotateCcw, Send, AlertTriangle, Sparkles } from 'lucide-react';
+import { Mic, Square, Volume2, RotateCcw, Send, AlertTriangle, Sparkles, MapPin, Search } from 'lucide-react';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { sendChatMessage } from '../services/api';
+import { UI_TRANSLATIONS, getTranslation } from '../constants/languages';
 
-const QUICK_QUESTIONS = {
-  'en-IN': [
-    "Will it rain today?",
-    "Do I need an umbrella?",
-    "I'm going to college tomorrow morning. Should I carry a raincoat?",
-    "How hot will it get this afternoon?",
-    "Is it safe to travel tomorrow?",
-  ],
-  'hi-IN': [
-    "क्या आज बारिश होगी?",
-    "क्या मुझे छाते की जरूरत है?",
-    "कल का मौसम कैसा रहेगा?",
-    "आज कितनी गर्मी पड़ेगी?",
-    "क्या कल यात्रा करना सुरक्षित है?"
-  ],
-  'te-IN': [
-    "ఈరోజు వర్షం పడుతుందా?",
-    "నాకు గొడుగు అవసరమా?",
-    "రేపు కళాశాలకు వెళ్లేటప్పుడు వర్షం పడుతుందా?",
-    "ఈ మధ్యాహ్నం ఎంత వేడిగా ఉంటుంది?",
-    "రేపు ప్రయాణం సురక్షితమేనా?"
-  ]
-};
-
-export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
+export default function VoiceAssistant({
+  currentLocation,
+  onWeatherUpdate,
+  language = 'en-IN',
+  setLanguage
+}) {
   const {
     state,
     setState,
     transcript,
     interimTranscript,
     errorMessage,
-    language,
-    setLanguage,
+    language: voiceLang,
+    setLanguage: setVoiceLang,
     startListening,
     stopListening,
     speak,
@@ -43,12 +25,19 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
     replaySpeech,
     clearTranscript,
     resetState
-  } = useVoiceAssistant('en-IN');
+  } = useVoiceAssistant(language);
 
   const [textInput, setTextInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
   const [activeResponse, setActiveResponse] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Keep voice hook language in sync with app language
+  useEffect(() => {
+    if (setVoiceLang && language !== voiceLang) {
+      setVoiceLang(language);
+    }
+  }, [language, voiceLang, setVoiceLang]);
 
   // Handle voice transcript when user finishes speaking
   useEffect(() => {
@@ -80,10 +69,6 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
         { role: 'assistant', content: response.answer }
       ]);
 
-      if (response.location && onWeatherUpdate) {
-        onWeatherUpdate(response.location);
-      }
-
       speak(response.answer, language);
     } catch (err) {
       console.error('Failed to get answer:', err);
@@ -103,16 +88,17 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
   };
 
   const handleLanguageChange = (newLang) => {
-    setLanguage(newLang);
+    if (setLanguage) setLanguage(newLang);
     resetState();
     if (activeResponse) {
-      // Re-trigger query in new language if available
       const lastUserMsg = chatHistory.length > 0 ? chatHistory[chatHistory.length - 2]?.content : null;
       if (lastUserMsg) {
         handleQuerySubmit(lastUserMsg);
       }
     }
   };
+
+  const quickQuestions = UI_TRANSLATIONS[language]?.quickQuestions || UI_TRANSLATIONS['en-IN'].quickQuestions;
 
   return (
     <div className="w-full max-w-4xl mx-auto mb-10">
@@ -215,14 +201,14 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
           <div className="mt-6 text-center">
             {state === 'idle' && (
               <div>
-                <p className="text-lg font-bold text-white tracking-wide">TAP TO SPEAK</p>
-                <p className="text-slate-400 text-xs mt-1">Ask me anything about weather</p>
+                <p className="text-lg font-bold text-white tracking-wide">{getTranslation(language, 'tapToSpeak')}</p>
+                <p className="text-slate-400 text-xs mt-1">{getTranslation(language, 'askAnything')}</p>
               </div>
             )}
 
             {state === 'listening' && (
               <div>
-                <p className="text-lg font-bold text-cyan-400 tracking-wide animate-pulse">🎙️ Listening...</p>
+                <p className="text-lg font-bold text-cyan-400 tracking-wide animate-pulse">{getTranslation(language, 'listening')}</p>
                 <p className="text-slate-300 text-sm mt-1 italic min-h-[24px]">
                   {interimTranscript || transcript || 'Speak your question now...'}
                 </p>
@@ -231,7 +217,7 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
 
             {state === 'processing' && (
               <div>
-                <p className="text-lg font-bold text-indigo-400 tracking-wide animate-pulse">Checking latest weather...</p>
+                <p className="text-lg font-bold text-indigo-400 tracking-wide animate-pulse">{getTranslation(language, 'checkingWeather')}</p>
                 <p className="text-slate-400 text-xs mt-1">Grounding response with Open-Meteo live data</p>
               </div>
             )}
@@ -272,7 +258,7 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
             <div className="flex items-start justify-between gap-3 mb-2">
               <div className="flex items-center gap-2 text-cyan-400 font-semibold text-sm">
                 <Sparkles className="w-4 h-4" />
-                WeatherGPT Answer ({activeResponse.location?.name || 'Selected Area'})
+                WeatherGPT Answer {activeResponse.location?.name ? `(${activeResponse.location.name})` : ''}
               </div>
               <button
                 onClick={replaySpeech}
@@ -283,13 +269,53 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
               </button>
             </div>
 
-            <p className="text-base text-slate-100 font-medium leading-relaxed mb-3">
+            <p className="text-base text-slate-100 font-medium leading-relaxed mb-3 whitespace-pre-line">
               "{activeResponse.answer}"
             </p>
 
+            {/* Explicit Location Override Prompt */}
+            {activeResponse.explicit_override && activeResponse.location && onWeatherUpdate && (
+              <div className="mt-3 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 text-cyan-300">
+                  <MapPin className="w-4 h-4 text-cyan-400" />
+                  <span>Answered for <strong>{activeResponse.location.name}</strong></span>
+                </div>
+                <button
+                  onClick={() => onWeatherUpdate(activeResponse.location)}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-bold transition-all shadow-md shrink-0 flex items-center gap-1"
+                >
+                  📍 Use {activeResponse.location.name} as active location
+                </button>
+              </div>
+            )}
+
+            {/* Location Required Actions */}
+            {activeResponse.is_location_required && (
+              <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => {
+                    const btn = document.getElementById('btn-use-my-location');
+                    if (btn) btn.click();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs transition-all shadow-md flex items-center gap-1.5"
+                >
+                  <MapPin className="w-4 h-4" /> {getTranslation(language, 'useMyLocation')}
+                </button>
+                <button
+                  onClick={() => {
+                    const input = document.querySelector('input[type="text"]');
+                    if (input) input.focus();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 font-semibold text-xs transition-all flex items-center gap-1.5"
+                >
+                  <Search className="w-4 h-4" /> {getTranslation(language, 'searchLocation')}
+                </button>
+              </div>
+            )}
+
             {/* Weather Telemetry Chips */}
             {activeResponse.weather && (
-              <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-800 text-xs text-slate-300">
+              <div className="flex flex-wrap gap-2 pt-2 mt-3 border-t border-slate-800 text-xs text-slate-300">
                 <span className="px-2.5 py-1 rounded-md bg-slate-800/80 border border-slate-700/60">
                   🌡️ {activeResponse.weather.temperature}°C (Feels {activeResponse.weather.apparent_temperature}°C)
                 </span>
@@ -324,7 +350,7 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
             Suggested Questions:
           </p>
           <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
-            {(QUICK_QUESTIONS[language] || QUICK_QUESTIONS['en-IN']).map((q, idx) => (
+            {quickQuestions.map((q, idx) => (
               <button
                 key={idx}
                 onClick={() => handleQuerySubmit(q)}
@@ -342,13 +368,7 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
             type="text"
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
-            placeholder={
-              language === 'te-IN'
-                ? "వాతావరణం గురించి ఇక్కడ టైప్ చేయండి..."
-                : language === 'hi-IN'
-                ? "मौसम के बारे में प्रश्न टाइप करें..."
-                : "Or type your weather question here..."
-            }
+            placeholder={getTranslation(language, 'typePlaceholder')}
             className="flex-1 px-4 py-3 rounded-2xl glass-input text-white text-sm focus:outline-none placeholder-slate-500"
           />
           <button
