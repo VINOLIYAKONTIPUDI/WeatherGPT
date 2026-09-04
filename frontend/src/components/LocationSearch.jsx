@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Navigation, Loader2 } from 'lucide-react';
+import { Search, MapPin, Navigation, Loader2, AlertCircle, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { searchLocations, reverseGeocode } from '../services/api';
 
 const QUICK_CITIES = [
@@ -16,6 +16,7 @@ export default function LocationSearch({ currentLocation, onLocationSelect }) {
   const [results, setResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [locationStatus, setLocationStatus] = useState(null); // { type: 'info'|'success'|'error', text: str }
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export default function LocationSearch({ currentLocation, onLocationSelect }) {
   }, [query]);
 
   const handleSelect = (loc) => {
+    setLocationStatus(null);
     onLocationSelect({
       latitude: loc.latitude,
       longitude: loc.longitude,
@@ -50,25 +52,89 @@ export default function LocationSearch({ currentLocation, onLocationSelect }) {
 
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.');
+      setLocationStatus({
+        type: 'error',
+        text: 'Geolocation is not supported by your browser.'
+      });
       return;
     }
 
     setIsLocating(true);
+    setLocationStatus({
+      type: 'info',
+      text: 'Requesting your location...'
+    });
+
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    };
+
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        const geoResult = await reverseGeocode(lat, lon);
-        onLocationSelect(geoResult);
-        setIsLocating(false);
+        try {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+
+          // Perform Reverse Geocoding
+          const geoResult = await reverseGeocode(lat, lon);
+          
+          const resolvedName = geoResult.name || 'Current Location';
+          setLocationStatus({
+            type: 'success',
+            text: `Location detected: ${resolvedName}`
+          });
+
+          onLocationSelect({
+            latitude: lat,
+            longitude: lon,
+            name: resolvedName,
+            country: geoResult.country || 'India',
+            admin1: geoResult.admin1 || ''
+          });
+        } catch (err) {
+          console.error('Error during reverse geocoding:', err);
+          setLocationStatus({
+            type: 'error',
+            text: 'Unable to determine your location name. Please try again.'
+          });
+        } finally {
+          setIsLocating(false);
+        }
       },
       (err) => {
-        console.warn('Geolocation denied or failed:', err);
-        alert('Could not access your location. Using default location.');
+        console.warn('Geolocation error code:', err.code, err.message);
         setIsLocating(false);
+        
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            setLocationStatus({
+              type: 'error',
+              text: 'Location permission was denied. Please allow location access in your browser settings.'
+            });
+            break;
+          case err.POSITION_UNAVAILABLE:
+            setLocationStatus({
+              type: 'error',
+              text: 'Your location could not be determined. Please check your device location services.'
+            });
+            break;
+          case err.TIMEOUT:
+            setLocationStatus({
+              type: 'error',
+              text: 'Location request timed out. Please try again.'
+            });
+            break;
+          default:
+            setLocationStatus({
+              type: 'error',
+              text: 'Unable to determine your location. Please try again.'
+            });
+            break;
+        }
       },
-      { timeout: 8000 }
+      options
     );
   };
 
@@ -123,6 +189,39 @@ export default function LocationSearch({ currentLocation, onLocationSelect }) {
           <span>{isLocating ? 'Locating...' : 'Use My Location'}</span>
         </button>
       </div>
+
+      {/* Geolocation Status Feedback Banner */}
+      {locationStatus && (
+        <div
+          className={`mt-3 p-3 rounded-xl text-xs flex items-center justify-between gap-3 border transition-all ${
+            locationStatus.type === 'error'
+              ? 'bg-red-500/10 border-red-500/30 text-red-300'
+              : locationStatus.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+              : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300 animate-pulse'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {locationStatus.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            ) : locationStatus.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <Loader2 className="w-4 h-4 text-cyan-400 shrink-0 animate-spin" />
+            )}
+            <span>{locationStatus.text}</span>
+          </div>
+
+          {locationStatus.type === 'error' && (
+            <button
+              onClick={handleUseMyLocation}
+              className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/40 text-[11px] font-semibold flex items-center gap-1 transition-all shrink-0"
+            >
+              <RotateCcw className="w-3 h-3" /> Try Again
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Quick City Pills */}
       <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">

@@ -29,3 +29,11 @@ dist/
 *.swo
 .DS_Store
 Thumbs.db
+
+# SSL Certificates & Development Keys (DO NOT COMMIT)
+certs/
+*.pem
+*.key
+*.crt
+*.p12
+
