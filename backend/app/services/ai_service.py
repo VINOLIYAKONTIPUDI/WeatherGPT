@@ -20,7 +20,7 @@ class AIService:
             "Hyderabad", "Vijayawada", "Delhi", "Mumbai", "Bengaluru", "Bangalore",
             "Tadepalligudem", "Chennai", "Kolkata", "Visakhapatnam", "Vizag", "Pune",
             "Jaipur", "Ahmedabad", "Lucknow", "Bhimavaram", "Guntur", "Tirupati",
-            "Kakinada", "Rajahmundry", "Nellore", "Anantapur", "Warangal"
+            "Kakinada", "Rajahmundry", "Nellore", "Anantapur", "Warangal", "Surat", "Patna"
         ]
         for c in cities:
             if c.lower() in text_lower:
@@ -68,7 +68,7 @@ class AIService:
         user_msg = request.message.strip()
         lang = request.language or "en-IN"
 
-        # 1. Session context & location resolution
+        # 1. Check for explicit location mentioned in user message (e.g. "What's the weather in Vijayawada?")
         extracted_city = cls.extract_location_from_text(user_msg)
         
         target_location: Optional[LocationCoordinates] = None
@@ -89,18 +89,19 @@ class AIService:
                     displayName=best.display_name,
                     source="search"
                 )
-                # Check if this explicit city differs from saved location
-                if request.location and request.location.name and request.location.name.lower() != best.name.lower():
+                # Check if explicit city differs from active location
+                active_name = (request.location.city or request.location.name) if request.location else ""
+                if active_name and active_name.lower() != best.name.lower():
                     explicit_override = True
+        
+        if target_location is None:
+            # Use active saved location from request
+            if request.location and request.location.latitude != 0 and request.location.longitude != 0:
+                target_location = request.location
             else:
-                if request.location and request.location.latitude != 0:
-                    target_location = request.location
-        elif request.location and request.location.latitude != 0 and request.location.longitude != 0:
-            target_location = request.location
-        else:
-            target_location = None
+                target_location = None
 
-        # STRICT VALIDATION: If location is missing, return Location Required response!
+        # STRICT VALIDATION: If no location is set, return Location Required response! Never fall back to Hyderabad!
         if target_location is None:
             return ChatResponse(
                 answer=get_location_required_message(lang),
@@ -141,7 +142,6 @@ class AIService:
         today = daily[0] if len(daily) > 0 else None
         tomorrow = daily[1] if len(daily) > 1 else daily[0]
         
-        # Calculate afternoon & night telemetry
         afternoon_temps = [h.temperature for h in hourly[12:17]] if len(hourly) >= 17 else [cur.temperature]
         afternoon_max = max(afternoon_temps, default=cur.temperature)
         
@@ -289,7 +289,7 @@ class AIService:
             answer=answer,
             language=lang,
             intent=intent,
-            location=weather_data.location,
+            location=target_location,
             weather=weather_summary,
             advisory=top_advisory,
             suggested_followups=suggested_followups,

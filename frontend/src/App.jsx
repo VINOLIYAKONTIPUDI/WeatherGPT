@@ -16,23 +16,23 @@ const LANGUAGE_STORAGE_KEY = 'weathergpt_language';
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  // Load saved location on app startup or null if not set
+  // 1. Single Source of Truth for Active Location (stored in localStorage)
   const [currentLocation, setCurrentLocation] = useState(() => {
     try {
       const saved = localStorage.getItem(LOCATION_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed.latitude === 'number' && typeof parsed.longitude === 'number') {
+        if (parsed && typeof parsed.latitude === 'number' && typeof parsed.longitude === 'number' && (parsed.latitude !== 0 || parsed.longitude !== 0)) {
           return parsed;
         }
       }
     } catch (e) {
       console.warn('Failed to parse saved location from localStorage:', e);
     }
-    return null;
+    return null; // Location Required State
   });
 
-  // Load saved language on app startup or default to en-IN
+  // 2. Language Selection State (stored in localStorage)
   const [language, setLanguage] = useState(() => {
     try {
       const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -47,7 +47,7 @@ export default function App() {
 
   // Load weather & advisories when location changes
   const loadLocationWeather = useCallback(async (loc) => {
-    if (!loc || typeof loc.latitude !== 'number' || typeof loc.longitude !== 'number') {
+    if (!loc || typeof loc.latitude !== 'number' || typeof loc.longitude !== 'number' || (loc.latitude === 0 && loc.longitude === 0)) {
       setWeatherData(null);
       setAlertsData(null);
       return;
@@ -88,7 +88,22 @@ export default function App() {
   }, [language]);
 
   const handleLocationChange = (newLoc) => {
-    setCurrentLocation(newLoc);
+    if (!newLoc) {
+      setCurrentLocation(null);
+      return;
+    }
+    const formatted = {
+      latitude: newLoc.latitude,
+      longitude: newLoc.longitude,
+      city: newLoc.city || newLoc.name || '',
+      state: newLoc.state || newLoc.admin1 || '',
+      country: newLoc.country || 'India',
+      displayName: newLoc.displayName || newLoc.display_name || `${newLoc.name || newLoc.city}, ${newLoc.country || 'India'}`,
+      source: newLoc.source || 'search',
+      name: newLoc.name || newLoc.city,
+      admin1: newLoc.admin1 || newLoc.state || ''
+    };
+    setCurrentLocation(formatted);
   };
 
   return (
@@ -111,7 +126,7 @@ export default function App() {
           language={language}
         />
 
-        {/* Location Required State Banner if no location is selected */}
+        {/* Location Required State Banner if no location is set */}
         {!currentLocation && (
           <div className="w-full max-w-4xl mx-auto mb-8 p-6 sm:p-8 rounded-3xl bg-dark-800/90 border border-amber-500/30 shadow-2xl text-center relative overflow-hidden">
             <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -186,36 +201,56 @@ export default function App() {
         {/* Tab 2: Dashboard & Forecast Deep Dive */}
         {activeTab === 'forecast' && (
           <div>
-            <WeatherCard
-              weatherData={weatherData}
-              location={currentLocation}
-            />
+            {currentLocation ? (
+              <>
+                <WeatherCard
+                  weatherData={weatherData}
+                  location={currentLocation}
+                />
 
-            {weatherData && (
-              <ForecastChart
-                hourlyData={weatherData.hourly}
-                dailyData={weatherData.daily}
-              />
+                {weatherData && (
+                  <ForecastChart
+                    hourlyData={weatherData.hourly}
+                    dailyData={weatherData.daily}
+                  />
+                )}
+
+                <WeatherMap
+                  location={currentLocation}
+                  currentWeather={weatherData?.current}
+                />
+              </>
+            ) : (
+              <div className="text-center py-12 text-slate-400">
+                <MapPin className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                <p className="font-semibold text-lg text-white">Location required to view detailed dashboard & maps.</p>
+                <p className="text-xs mt-1">Please select your location using the search bar above or click "Use My Location".</p>
+              </div>
             )}
-
-            <WeatherMap
-              location={currentLocation}
-              currentWeather={weatherData?.current}
-            />
           </div>
         )}
 
         {/* Tab 3: Advisories & Active Safety Alerts */}
         {activeTab === 'alerts' && (
           <div>
-            {alertsData && (
-              <AdvisoryCard alerts={alertsData.alerts} />
-            )}
+            {currentLocation ? (
+              <>
+                {alertsData && (
+                  <AdvisoryCard alerts={alertsData.alerts} />
+                )}
 
-            <WeatherCard
-              weatherData={weatherData}
-              location={currentLocation}
-            />
+                <WeatherCard
+                  weatherData={weatherData}
+                  location={currentLocation}
+                />
+              </>
+            ) : (
+              <div className="text-center py-12 text-slate-400">
+                <MapPin className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                <p className="font-semibold text-lg text-white">Location required to view weather advisories.</p>
+                <p className="text-xs mt-1">Please select your location using the search bar above or click "Use My Location".</p>
+              </div>
+            )}
           </div>
         )}
       </main>

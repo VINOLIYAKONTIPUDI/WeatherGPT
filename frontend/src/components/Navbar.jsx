@@ -1,6 +1,6 @@
 import React from 'react';
-import { Mic, LayoutDashboard, AlertTriangle, CloudSun, MapPin, Globe } from 'lucide-react';
-import { LANGUAGES } from '../constants/languages';
+import { Mic, LayoutDashboard, AlertTriangle, CloudSun, MapPin } from 'lucide-react';
+import { getTranslation } from '../constants/languages';
 
 export default function Navbar({
   activeTab,
@@ -11,12 +11,12 @@ export default function Navbar({
   setLanguage
 }) {
   const displayLocation = currentLocation
-    ? `${currentLocation.name || currentLocation.city || 'Selected Location'}${
-        currentLocation.admin1 || currentLocation.state
-          ? `, ${currentLocation.admin1 || currentLocation.state}`
+    ? `${currentLocation.city || currentLocation.name || 'Selected Location'}${
+        currentLocation.state || currentLocation.admin1
+          ? `, ${currentLocation.state || currentLocation.admin1}`
           : ''
       }`
-    : 'Location not set';
+    : getTranslation(language, 'locationNotSet');
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-dark-900/80 border-b border-slate-800/80 mb-6">
@@ -35,11 +35,32 @@ export default function Navbar({
             </h1>
             
             {/* Prominent Active Location Indicator */}
-            <div className="flex items-center gap-1 text-[11px] font-semibold mt-0.5">
-              <MapPin className={`w-3 h-3 ${currentLocation ? 'text-cyan-400' : 'text-amber-400'}`} />
-              <span className={currentLocation ? 'text-cyan-300' : 'text-amber-300'}>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold mt-0.5">
+              <MapPin className={`w-3.5 h-3.5 ${currentLocation ? 'text-cyan-400' : 'text-amber-400 animate-pulse'}`} />
+              <span className={currentLocation ? 'text-cyan-300' : 'text-amber-300 font-bold'}>
                 {displayLocation}
               </span>
+              {currentLocation ? (
+                <button
+                  onClick={() => {
+                    const input = document.querySelector('input[type="text"]');
+                    if (input) input.focus();
+                  }}
+                  className="text-[10px] text-slate-400 hover:text-cyan-300 underline ml-1"
+                >
+                  ({getTranslation(language, 'changeLocation')})
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const btn = document.getElementById('btn-use-my-location');
+                    if (btn) btn.click();
+                  }}
+                  className="text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 px-2 py-0.5 rounded-full border border-amber-500/40 ml-1 transition-all"
+                >
+                  {getTranslation(language, 'setLocation')}
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -1,30 +1,11 @@
 // Centralized Multilingual Configuration & UI Strings for WeatherGPT
 
 export const LANGUAGES = {
-  'en-IN': {
-    code: 'en-IN',
-    shortCode: 'en',
-    name: 'English',
-    nativeName: 'English',
-    speechLang: 'en-IN',
-  },
-  'hi-IN': {
-    code: 'hi-IN',
-    shortCode: 'hi',
-    name: 'Hindi',
-    nativeName: 'हिन्दी',
-    speechLang: 'hi-IN',
-  },
-  'te-IN': {
-    code: 'te-IN',
-    shortCode: 'te',
-    name: 'Telugu',
-    nativeName: 'తెలుగు',
-    speechLang: 'te-IN',
-  },
-  // Extensible structure for additional Indian languages
+  'en-IN': { code: 'en-IN', shortCode: 'en', name: 'English', nativeName: 'English', speechLang: 'en-IN' },
+  'hi-IN': { code: 'hi-IN', shortCode: 'hi', name: 'Hindi', nativeName: 'हिन्दी', speechLang: 'hi-IN' },
+  'te-IN': { code: 'te-IN', shortCode: 'te', name: 'Telugu', nativeName: 'తెలుగు', speechLang: 'te-IN' },
   'ta-IN': { code: 'ta-IN', shortCode: 'ta', name: 'Tamil', nativeName: 'தமிழ்', speechLang: 'ta-IN' },
-  'kn-IN': { code: 'kn-IN', shortCode: 'kn', name: 'Kannada', nativeName: 'తెలుగు/ಕನ್ನಡ', speechLang: 'kn-IN' },
+  'kn-IN': { code: 'kn-IN', shortCode: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ', speechLang: 'kn-IN' },
   'ml-IN': { code: 'ml-IN', shortCode: 'ml', name: 'Malayalam', nativeName: 'മലയാളം', speechLang: 'ml-IN' },
   'mr-IN': { code: 'mr-IN', shortCode: 'mr', name: 'Marathi', nativeName: 'मराठी', speechLang: 'mr-IN' },
   'bn-IN': { code: 'bn-IN', shortCode: 'bn', name: 'Bengali', nativeName: 'বাংলা', speechLang: 'bn-IN' },
@@ -32,6 +13,8 @@ export const LANGUAGES = {
   'pa-IN': { code: 'pa-IN', shortCode: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', speechLang: 'pa-IN' },
   'gu-IN': { code: 'gu-IN', shortCode: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી', speechLang: 'gu-IN' },
 };
+
+export const PRIMARY_LANGUAGES = ['en-IN', 'hi-IN', 'te-IN'];
 
 export const UI_TRANSLATIONS = {
   'en-IN': {
@@ -102,10 +85,42 @@ export const UI_TRANSLATIONS = {
       "ఈ మధ్యాహ్నం ఎంత వేడిగా ఉంటుంది?",
       "రేపు ప్రయాణం సురక్షితమేనా?"
     ]
+  },
+  'ta-IN': {
+    locationRequiredTitle: "📍 இருப்பிடம் தேவை",
+    locationRequiredMessage: "துல்லியமான வானிலை தகவலை வழங்க உங்கள் இருப்பிடம் தேவை.",
+    useMyLocation: "📍 என் இருப்பிடத்தைப் பயன்படுத்து",
+    searchLocation: "🔎 இருப்பிடத்தைத் தேடு",
+    searchPlaceholder: "நகரம் அல்லது பகுதியைத் தேடவும்...",
+    locationNotSet: "📍 இருப்பிடம் அமைக்கப்படவில்லை",
+    setLocation: "இருப்பிடத்தை அமை",
+    changeLocation: "இருப்பிடத்தை மாற்று",
+    tapToSpeak: "பேச தட்டவும்",
+    askAnything: "வானிலை பற்றி எதுவும் கேளுங்கள்",
+    listening: "🎙️ கேட்கிறது...",
+    checkingWeather: "வானிலை தகவலைப் பெறுகிறது...",
+    typePlaceholder: "உங்கள் கேள்வியை தட்டச்சு செய்க...",
+    quickQuestions: ["இன்று மழை பெய்யுமா?", "எனக்கு குடை தேவையா?", "நாளை வானிலை எப்படி இருக்கும்?"]
+  },
+  'kn-IN': {
+    locationRequiredTitle: "📍 ಸ್ಥಳದ ವಿವರ ಅಗತ್ಯವಿದೆ",
+    locationRequiredMessage: "ನಿಖರವಾದ ಹವಾಮಾನ ಮಾಹಿತಿಯನ್ನು ನೀಡಲು ನಿಮ್ಮ ಸ್ಥಳದ ವಿವರಗಳು ಬೇಕು.",
+    useMyLocation: "📍 ನನ್ನ ಸ್ಥಳ ಬಳಸಿ",
+    searchLocation: "🔎 ಸ್ಥಳ ಹುಡುಕಿ",
+    searchPlaceholder: "ನಗರ ಅಥವಾ ಪ್ರದೇಶ ಹುಡುಕಿ...",
+    locationNotSet: "📍 ಸ್ಥಳ ಹೊಂದಿಸಿಲ್ಲ",
+    setLocation: "ಸ್ಥಳ ಹೊಂದಿಸಿ",
+    changeLocation: "ಸ್ಥಳ ಬದಲಾಯಿಸಿ",
+    tapToSpeak: "ಮಾತನಾಡಲು ಸ್ಪರ್ಶಿಸಿ",
+    askAnything: "ಹವಾಮಾನದ ಬಗ್ಗೆ ಕೇಳಿ",
+    listening: "🎙️ ಆಲಿಸಲಾಗುತ್ತಿದೆ...",
+    checkingWeather: "ಹವಾಮಾನ ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ...",
+    typePlaceholder: "ನಿಮ್ಮ ಪ್ರಶ್ನೆಯನ್ನು ಟೈಪ್ ಮಾಡಿ...",
+    quickQuestions: ["ಇಂದು ಮಳೆ ಬರುತ್ತದೆಯೇ?", "ನನಗೆ ಛತ್ರಿ ಬೇಕೇ?", "ನಾಳೆ ವಾತಾವರಣ ಹೇಗಿರುತ್ತದೆ?"]
   }
 };
 
 export function getTranslation(langCode, key) {
   const langKey = LANGUAGES[langCode] ? langCode : (langCode?.startsWith('te') ? 'te-IN' : (langCode?.startsWith('hi') ? 'hi-IN' : 'en-IN'));
-  return UI_TRANSLATIONS[langKey]?.[key] || UI_TRANSLATIONS['en-IN'][key] || '';
+  return UI_TRANSLATIONS[langKey]?.[key] || UI_TRANSLATIONS['en-IN']?.[key] || '';
 }
