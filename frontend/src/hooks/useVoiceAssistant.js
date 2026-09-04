@@ -8,12 +8,32 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
   const [errorMessage, setErrorMessage] = useState('');
   const [language, setLanguage] = useState(defaultLanguage);
   const [hasSpeechSupport, setHasSpeechSupport] = useState(true);
+  const [availableVoices, setAvailableVoices] = useState([]);
 
   const recognitionRef = useRef(null);
-  const synthRef = useRef(window.speechSynthesis || null);
+  const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
 
-  // Initialize SpeechRecognition
+  // Load available speech synthesis voices
   useEffect(() => {
+    if (!synthRef.current) return;
+    
+    const updateVoices = () => {
+      const v = synthRef.current.getVoices();
+      if (v && v.length > 0) {
+        setAvailableVoices(v);
+      }
+    };
+
+    updateVoices();
+    if (synthRef.current.onvoiceschanged !== undefined) {
+      synthRef.current.onvoiceschanged = updateVoices;
+    }
+  }, []);
+
+  // Initialize SpeechRecognition instance
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setHasSpeechSupport(false);
@@ -54,7 +74,7 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
           setErrorMessage(
             event.error === 'not-allowed'
               ? 'Microphone permission denied. Please allow microphone access.'
-              : `Speech recognition issue (${event.error}). Try again or type below.`
+              : `Speech issue (${event.error}). Try again or type below.`
           );
           setState('error');
         } else {
@@ -63,7 +83,7 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
       };
 
       recognition.onend = () => {
-        // Will transition to 'processing' externally if transcript exists
+        // Voice input ended
       };
 
       recognitionRef.current = recognition;
@@ -75,13 +95,12 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
 
   // Start Voice Recording
   const startListening = useCallback(() => {
-    // Stop any ongoing speech output first
     if (synthRef.current && synthRef.current.speaking) {
       synthRef.current.cancel();
     }
 
     if (!recognitionRef.current) {
-      setErrorMessage('Speech recognition is not supported in this browser. Please use Chrome/Edge or type your question.');
+      setErrorMessage('Speech recognition is not supported in this browser mode. Please type your question.');
       setState('error');
       return;
     }
@@ -90,10 +109,10 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
       recognitionRef.current.lang = language;
       recognitionRef.current.start();
     } catch (err) {
-      console.warn('Recognition start exception, retrying:', err);
+      console.warn('Recognition start exception, resetting:', err);
       try {
         recognitionRef.current.stop();
-        setTimeout(() => recognitionRef.current.start(), 200);
+        setTimeout(() => recognitionRef.current && recognitionRef.current.start(), 200);
       } catch (e) {
         setState('idle');
       }
@@ -111,7 +130,7 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
     }
   }, []);
 
-  // Text-To-Speech (Speech Synthesis)
+  // Text-To-Speech Output
   const speak = useCallback((text, speakLang = language) => {
     if (!synthRef.current || !text) {
       setState('idle');
@@ -119,16 +138,18 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
     }
 
     setLastResponseText(text);
-    synthRef.current.cancel(); // Stop any active speech
+    synthRef.current.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = speakLang;
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
 
-    // Pick best matching voice if available
     const voices = synthRef.current.getVoices();
-    const matchingVoice = voices.find(v => v.lang.startsWith(speakLang.slice(0, 2))) ||
+    const langCode = speakLang.split('-')[0];
+    
+    // Pick matching voice for language code
+    const matchingVoice = voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith(langCode)) ||
                           voices.find(v => v.lang.includes('IN')) ||
                           voices[0];
     if (matchingVoice) {
@@ -166,6 +187,11 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
     }
   }, [lastResponseText, language, speak]);
 
+  const clearTranscript = useCallback(() => {
+    setTranscript('');
+    setInterimTranscript('');
+  }, []);
+
   return {
     state,
     setState,
@@ -176,11 +202,13 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
     language,
     setLanguage,
     hasSpeechSupport,
+    availableVoices,
     startListening,
     stopListening,
     speak,
     stopSpeaking,
     replaySpeech,
+    clearTranscript,
     resetState: () => {
       setState('idle');
       setTranscript('');

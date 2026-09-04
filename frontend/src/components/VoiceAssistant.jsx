@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, MicOff, Square, Volume2, RotateCcw, Send, AlertTriangle, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Mic, Square, Volume2, RotateCcw, Send, AlertTriangle, Sparkles } from 'lucide-react';
 import { useVoiceAssistant } from '../hooks/useVoiceAssistant';
 import { sendChatMessage } from '../services/api';
 
@@ -41,6 +41,8 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
     speak,
     stopSpeaking,
     replaySpeech,
+    clearTranscript,
+    resetState
   } = useVoiceAssistant('en-IN');
 
   const [textInput, setTextInput] = useState('');
@@ -51,7 +53,9 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
   // Handle voice transcript when user finishes speaking
   useEffect(() => {
     if (transcript && transcript.trim().length > 0) {
-      handleQuerySubmit(transcript);
+      const q = transcript;
+      clearTranscript();
+      handleQuerySubmit(q);
     }
   }, [transcript]);
 
@@ -76,12 +80,10 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
         { role: 'assistant', content: response.answer }
       ]);
 
-      // If backend resolved weather or location, notify parent dashboard to update cards
       if (response.location && onWeatherUpdate) {
         onWeatherUpdate(response.location);
       }
 
-      // Automatically speak the response
       speak(response.answer, language);
     } catch (err) {
       console.error('Failed to get answer:', err);
@@ -102,8 +104,13 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
 
   const handleLanguageChange = (newLang) => {
     setLanguage(newLang);
-    if (state === 'speaking') {
-      stopSpeaking();
+    resetState();
+    if (activeResponse) {
+      // Re-trigger query in new language if available
+      const lastUserMsg = chatHistory.length > 0 ? chatHistory[chatHistory.length - 2]?.content : null;
+      if (lastUserMsg) {
+        handleQuerySubmit(lastUserMsg);
+      }
     }
   };
 
@@ -111,11 +118,11 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
     <div className="w-full max-w-4xl mx-auto mb-10">
       {/* Main Hero Card */}
       <div className="glass-card rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden border border-cyan-500/20">
-        {/* Glow ambient effects */}
+        {/* Ambient glow */}
         <div className="absolute -top-24 -left-24 w-72 h-72 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Header & Language Selector */}
+        {/* Header & Language Switcher */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 relative z-10">
           <div className="text-center sm:text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-semibold uppercase tracking-wider mb-2">
@@ -165,7 +172,6 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
         {/* Central Microphone Visual & Controls */}
         <div className="flex flex-col items-center justify-center my-6 relative z-10">
           <div className="relative flex items-center justify-center">
-            {/* Animated Ripples when Listening */}
             {state === 'listening' && (
               <>
                 <span className="absolute w-36 h-36 rounded-full bg-cyan-500/25 animate-ping pointer-events-none" />
@@ -173,7 +179,6 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
               </>
             )}
 
-            {/* Glowing Pulse when Speaking */}
             {state === 'speaking' && (
               <span className="absolute w-40 h-40 rounded-full bg-gradient-to-r from-cyan-500/40 to-indigo-500/40 animate-pulse-glow pointer-events-none" />
             )}
@@ -206,7 +211,7 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
             </button>
           </div>
 
-          {/* Status Text Indicator */}
+          {/* Status Indicator */}
           <div className="mt-6 text-center">
             {state === 'idle' && (
               <div>
@@ -226,7 +231,7 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
 
             {state === 'processing' && (
               <div>
-                <p className="text-lg font-bold text-indigo-400 tracking-wide animate-pulse">Checking the latest weather...</p>
+                <p className="text-lg font-bold text-indigo-400 tracking-wide animate-pulse">Checking latest weather...</p>
                 <p className="text-slate-400 text-xs mt-1">Grounding response with Open-Meteo live data</p>
               </div>
             )}
@@ -300,7 +305,7 @@ export default function VoiceAssistant({ currentLocation, onWeatherUpdate }) {
               </div>
             )}
 
-            {/* Active Advisory Alert Banner if present */}
+            {/* Active Advisory Alert Banner */}
             {activeResponse.advisory && activeResponse.advisory.severity !== 'safe' && (
               <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 flex items-start gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
