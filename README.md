@@ -89,10 +89,16 @@ Grounded Response Generation
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `GET` | `/api/health` | Service health status check |
+| `POST` | `/api/auth/signup` | Register new user and dispatch 6-digit email OTP |
+| `POST` | `/api/auth/verify-otp` | Verify 6-digit OTP and issue JWT access token |
+| `POST` | `/api/auth/login` | Authenticate user and issue JWT token |
+| `POST` | `/api/auth/demo-login` | Instant 1-click login for hackathon judges & evaluators |
+| `GET` | `/api/auth/me` | Retrieve authenticated user profile |
 | `GET` | `/api/weather/current` | Get current weather telemetry |
 | `GET` | `/api/weather/forecast` | Get 24h hourly and 7-day daily forecast |
 | `POST` | `/api/chat` | Process conversational natural language query |
 | `GET` | `/api/alerts` | Get active weather safety advisories & warnings |
+| `POST` | `/api/alerts/broadcast-sms` | Broadcast emergency disaster warning SMS to contacts |
 | `GET` | `/api/location/search` | Search city coordinates |
 | `GET` | `/api/location/reverse` | Reverse geocode latitude & longitude |
 
@@ -104,58 +110,48 @@ Grounded Response Generation
 - Node.js ≥ v18
 - Python ≥ 3.10
 
-### 1. Clone & Setup Backend
+### 🚀 One-Click Startup (Recommended)
 ```bash
 # Navigate to repository root
 cd WeatherGPT
 
-# Create Python virtual environment
-python3 -m venv backend/venv
-source backend/venv/bin/activate
-
-# Install backend dependencies
-pip install -r backend/requirements.txt
-
-# Start FastAPI backend server (Port 8001)
-PYTHONPATH=backend python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+# Run both Backend & Frontend with a single command
+./start.sh
 ```
 
-### 2. Setup & Start Frontend
-```bash
-# In a new terminal tab
-cd WeatherGPT/frontend
-
-# Install node dependencies
-npm install
-
-# Start Vite dev server (Port 5173)
-npm run dev
-```
-
-Open `http://localhost:5173` in your browser.
+- **Frontend App**: `http://localhost:5174`
+- **Backend API**: `http://localhost:8000/api/health`
+- **Swagger Docs**: `http://localhost:8000/docs`
 
 ---
 
 ## 🎬 Hackathon Live Demo Walkthrough
 
-1. **Demo 1 — Voice Question (English)**
-   - Click the central microphone button.
+1. **Demo 1 — Instant Judge Access & Voice Question (English)**
+   - Click **"⚡ Instant Judge / Evaluator Demo Access"** to immediately sign in.
+   - Click the central glowing microphone button.
    - Say: *"Will I need an umbrella tomorrow morning?"*
-   - WeatherGPT speaks back: *"Yes, I'd recommend carrying an umbrella in Hyderabad. There is a 51% chance of rain..."* while displaying live telemetry chips and rain advisories.
+   - WeatherGPT speaks back with live telemetry chips and rain advisories.
 
 2. **Demo 2 — Multilingual Support (Telugu & Hindi)**
    - Toggle language to **తెలుగు** or **हिंदी**.
    - Click a localized suggestion button like *"నాకు గొడుగు అవసరమా?"* or *"क्या मुझे छाते की जरूरत है?"*.
-   - WeatherGPT responds in Telugu/Hindi text and voice output.
+   - WeatherGPT responds in fluent Telugu/Hindi native script and voice output.
 
 3. **Demo 3 — Weather Intelligence & Travel Advisory**
    - Ask: *"I'm going to college tomorrow morning. Should I carry a raincoat?"* or *"Is it safe to travel tomorrow?"*.
    - WeatherGPT evaluates rain probability, temperature, wind, and UV index to provide actionable advice.
 
-4. **Demo 4 — Active Safety Advisories**
+4. **Demo 4 — Active Safety Advisories & Level-1 Alerts**
    - View active high UV radiation, extreme heat, or heavy rain warning banners with explicit safety recommendations.
+
+5. **Demo 5 — Emergency Disaster SMS & Buzz Alert Siren (EAS)**
+   - Click the **"🚨 Alert SMS"** button in the navbar (or on critical hazard banners).
+   - The platform initiates a real-time Emergency Broadcast System dual-tone audio buzz and haptic phone vibration.
+   - Add your test phone numbers and click **"Broadcast Emergency SMS & Buzz Alert"** to dispatch disaster warning SMS alerts.
 
 ---
 
 ## 📜 License
 Developed for Smart India Hackathon. Open source under MIT License.
+

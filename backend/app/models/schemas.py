@@ -71,6 +71,7 @@ class AlertsResponse(BaseModel):
     location: LocationCoordinates
     alerts: List[AdvisoryItem]
     count: int
+    has_critical_hazard: bool = False
 
 class ChatMessage(BaseModel):
     role: str  # 'user' or 'assistant'
@@ -131,5 +132,24 @@ class AuthTokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+class SMSBroadcastRequest(BaseModel):
+    phone_numbers: Optional[List[str]] = None
+    alert_type: str = "Severe Weather Warning"
+    location_name: str = "Selected Location"
+    recommendation: str = "Seek immediate indoor shelter and follow emergency safety guidelines."
+    severity: str = "danger"
+
+class SMSBroadcastResponse(BaseModel):
+    success: bool
+    alert_type: str
+    location: str
+    severity: str
+    recipient_count: int
+    recipients: List[str]
+    dispatched_at: str
+    message_preview: str
+    broadcast_mode: str
+    dispatch_receipts: List[Dict[str, Any]]
 
 

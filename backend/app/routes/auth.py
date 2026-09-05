@@ -231,3 +231,31 @@ async def get_me(authorization: Optional[str] = Header(None)):
         email=user["email"],
         is_verified=user.get("is_verified", True)
     )
+
+@router.post("/demo-login", response_model=AuthTokenResponse)
+async def demo_login():
+    """Provides instant 1-click login for hackathon judges & evaluators."""
+    demo_email = "demo@weathergpt.com"
+    user = await find_user_by_email(demo_email)
+    if not user:
+        user = {
+            "id": "usr_demo_judge_2026",
+            "name": "Hackathon Judge",
+            "email": demo_email,
+            "password_hash": security.hash_password("DemoJudge2026!"),
+            "is_verified": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await save_user(user)
+
+    token = security.create_access_token({"sub": user["id"], "email": demo_email})
+    return AuthTokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse(
+            id=user["id"],
+            name=user["name"],
+            email=user["email"],
+            is_verified=True
+        )
+    )

@@ -7,10 +7,11 @@ import ForecastChart from './components/ForecastChart';
 import AdvisoryCard from './components/AdvisoryCard';
 import WeatherMap from './components/WeatherMap';
 import AuthModal from './components/auth/AuthModal';
+import EmergencyBuzzModal from './components/EmergencyBuzzModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { fetchWeatherForecast, fetchWeatherAlerts } from './services/api';
 import { getTranslation } from './constants/languages';
-import { MapPin, Search, Loader2 } from 'lucide-react';
+import { MapPin, Search, Loader2, ShieldAlert, BellRing } from 'lucide-react';
 
 const LOCATION_STORAGE_KEY = 'weathergpt_active_location';
 const LANGUAGE_STORAGE_KEY = 'weathergpt_language';
@@ -18,6 +19,7 @@ const LANGUAGE_STORAGE_KEY = 'weathergpt_language';
 function MainAppContent() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
 
   // 1. Single Source of Truth for Active Location (stored in localStorage)
   const [currentLocation, setCurrentLocation] = useState(() => {
@@ -126,6 +128,14 @@ function MainAppContent() {
       {/* Route Protection: Show Auth Modal if not logged in */}
       {!isAuthenticated && <AuthModal />}
 
+      {/* Emergency Disaster Buzz & SMS Broadcast Modal */}
+      <EmergencyBuzzModal
+        isOpen={isEmergencyModalOpen}
+        onClose={() => setIsEmergencyModalOpen(false)}
+        currentLocation={currentLocation}
+        criticalAlert={alertsData?.alerts?.find(a => a.severity === 'danger')}
+      />
+
       {/* Top Header Navbar */}
       <Navbar
         activeTab={activeTab}
@@ -134,6 +144,7 @@ function MainAppContent() {
         currentLocation={currentLocation}
         language={language}
         setLanguage={setLanguage}
+        onOpenEmergencyModal={() => setIsEmergencyModalOpen(true)}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 pb-16">
@@ -183,6 +194,33 @@ function MainAppContent() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Critical Disaster Alert Banner (Thunderstorms, Heavy Rain, Extreme Heat) */}
+        {alertsData?.has_critical_hazard && (
+          <div className="w-full max-w-4xl mx-auto mb-6 p-4 sm:p-5 rounded-2xl bg-red-500/20 border-2 border-red-500/60 shadow-xl shadow-red-500/20 flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-600/40 border border-red-500/60 flex items-center justify-center text-red-300 shrink-0">
+                <ShieldAlert className="w-6 h-6 animate-bounce" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white font-heading">
+                  🚨 LEVEL-1 CRITICAL DISASTER ALERT DETECTED
+                </h3>
+                <p className="text-xs text-red-200">
+                  Severe weather hazard in effect for <strong>{currentLocation?.name || 'your area'}</strong>.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsEmergencyModalOpen(true)}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 shrink-0 border border-red-400/50"
+            >
+              <BellRing className="w-4 h-4" />
+              <span>Broadcast SMS & Buzz Siren</span>
+            </button>
           </div>
         )}
 

@@ -117,8 +117,10 @@ class AdvisoryService:
     @classmethod
     def get_alerts_response(cls, weather_data: WeatherForecastResponse) -> AlertsResponse:
         advisories = cls.generate_advisories(weather_data)
+        has_critical = any(a.severity == "danger" for a in advisories)
         return AlertsResponse(
             location=weather_data.location,
             alerts=advisories,
-            count=len(advisories)
+            count=len(advisories),
+            has_critical_hazard=has_critical
         )

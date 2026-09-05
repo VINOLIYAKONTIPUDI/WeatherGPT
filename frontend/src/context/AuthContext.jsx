@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { signupUser, verifyOTP, resendOTP, loginUser, getCurrentUser } from '../services/api';
+import { signupUser, verifyOTP, resendOTP, loginUser, getCurrentUser, loginDemoJudge } from '../services/api';
 
 const TOKEN_KEY = 'weathergpt_auth_token';
 
@@ -59,6 +59,16 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const demoLogin = async () => {
+    const data = await loginDemoJudge();
+    if (data.access_token) {
+      localStorage.setItem(TOKEN_KEY, data.access_token);
+      setToken(data.access_token);
+      setUser(data.user);
+    }
+    return data;
+  };
+
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
     setUser(null);
@@ -76,6 +86,7 @@ export function AuthProvider({ children }) {
         verify,
         resend,
         login,
+        demoLogin,
         logout,
       }}
     >

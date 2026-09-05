@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, LayoutDashboard, AlertTriangle, CloudSun, MapPin, LogOut, UserCheck } from 'lucide-react';
+import { Mic, LayoutDashboard, AlertTriangle, CloudSun, MapPin, LogOut, UserCheck, ShieldAlert } from 'lucide-react';
 import { getTranslation } from '../constants/languages';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,7 +9,8 @@ export default function Navbar({
   alertCount = 0,
   currentLocation,
   language = 'en-IN',
-  setLanguage
+  setLanguage,
+  onOpenEmergencyModal
 }) {
   const { user, logout, isAuthenticated } = useAuth();
 
@@ -166,6 +167,18 @@ export default function Navbar({
               )}
             </button>
           </nav>
+
+          {/* Emergency Alert & SMS Buzz Broadcast Trigger Button */}
+          {onOpenEmergencyModal && (
+            <button
+              onClick={onOpenEmergencyModal}
+              className="px-3 py-1.5 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-red-600/30 flex items-center gap-1.5 border border-red-400/40 animate-pulse shrink-0"
+              title="Trigger Emergency Weather Disaster Broadcast & Siren"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-white" />
+              <span className="hidden sm:inline">🚨 Alert SMS</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

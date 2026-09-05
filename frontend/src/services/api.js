@@ -54,6 +54,21 @@ export async function fetchWeatherAlerts(lat, lon, name = 'Selected Location') {
   }
 }
 
+export async function broadcastEmergencySMS(alertType, locationName, recommendation, severity = 'danger', phoneNumbers = null) {
+  const res = await fetch(`${API_BASE}/alerts/broadcast-sms`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phone_numbers: phoneNumbers,
+      alert_type: alertType,
+      location_name: locationName,
+      recommendation: recommendation,
+      severity: severity,
+    }),
+  });
+  return await parseResponseJson(res, 'Emergency SMS Broadcast failed');
+}
+
 export async function searchLocations(query) {
   try {
     const res = await fetch(`${API_BASE}/location/search?q=${encodeURIComponent(query)}`);
@@ -118,4 +133,12 @@ export async function getCurrentUser(token) {
     },
   });
   return await parseResponseJson(res, 'Invalid token');
+}
+
+export async function loginDemoJudge() {
+  const res = await fetch(`${API_BASE}/auth/demo-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return await parseResponseJson(res, 'Demo login failed');
 }

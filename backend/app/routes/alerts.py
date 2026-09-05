@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Query, HTTPException, Request
 from typing import Optional
-from app.models.schemas import AlertsResponse
+from app.models.schemas import AlertsResponse, SMSBroadcastRequest, SMSBroadcastResponse
 from app.services.weather_service import WeatherService
 from app.services.advisory_service import AdvisoryService
+from app.services.sms_service import SMSService
 
 router = APIRouter(prefix="/api/alerts", tags=["Weather Alerts & Advisories"])
 
@@ -36,4 +37,22 @@ async def get_weather_alerts(
         return AdvisoryService.get_alerts_response(forecast)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/broadcast-sms", response_model=SMSBroadcastResponse)
+async def broadcast_disaster_sms(payload: SMSBroadcastRequest):
+    """
+    Triggers an urgent disaster warning SMS broadcast to specified phone numbers
+    or default emergency contacts during severe thunderstorms, heavy rainfall, or extreme heat.
+    """
+    try:
+        res = await SMSService.dispatch_emergency_broadcast(
+            phone_numbers=payload.phone_numbers,
+            alert_type=payload.alert_type,
+            location_name=payload.location_name,
+            recommendation=payload.recommendation,
+            severity=payload.severity
+        )
+        return SMSBroadcastResponse(**res)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to broadcast emergency SMS: {str(e)}")
 

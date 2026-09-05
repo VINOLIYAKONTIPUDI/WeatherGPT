@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Mail, Lock, User, KeyRound, Sparkles, AlertCircle, ArrowRight, CheckCircle2, RotateCcw, ShieldCheck } from 'lucide-react';
 
 export default function AuthModal() {
-  const { signup, verify, resend, login } = useAuth();
+  const { signup, verify, resend, login, demoLogin } = useAuth();
 
   const [mode, setMode] = useState('signup'); // 'signup' | 'otp' | 'login'
   
@@ -268,6 +268,27 @@ export default function AuthModal() {
               )}
             </button>
 
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={async () => {
+                  setErrorMsg('');
+                  setLoading(true);
+                  try {
+                    await demoLogin();
+                  } catch (err) {
+                    setErrorMsg(err.message || 'Demo login failed');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                className="w-full py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 border border-cyan-500/40 text-cyan-300 font-extrabold text-xs transition-all shadow-md flex items-center justify-center gap-2"
+              >
+                <span>⚡ Instant Judge / Evaluator Demo Access</span>
+              </button>
+            </div>
+
             <p className="text-center text-xs text-slate-400 mt-3">
               Already registered?{' '}
               <button
@@ -391,6 +412,27 @@ export default function AuthModal() {
                 </>
               )}
             </button>
+
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={async () => {
+                  setErrorMsg('');
+                  setLoading(true);
+                  try {
+                    await demoLogin();
+                  } catch (err) {
+                    setErrorMsg(err.message || 'Demo login failed');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                className="w-full py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 border border-cyan-500/40 text-cyan-300 font-extrabold text-xs transition-all shadow-md flex items-center justify-center gap-2"
+              >
+                <span>⚡ Instant Judge / Evaluator Demo Access</span>
+              </button>
+            </div>
 
             <p className="text-center text-xs text-slate-400 mt-3">
               Don't have an account?{' '}
