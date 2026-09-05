@@ -236,8 +236,8 @@ function MainAppContent() {
               />
             )}
 
-            {alertsData && alertsData.alerts.length > 0 && (
-              <AdvisoryCard alerts={alertsData.alerts} />
+            {alertsData && (
+              <AdvisoryCard alerts={alertsData.alerts} smartAlert={alertsData.smart_alert} />
             )}
 
             {weatherData && (
@@ -299,7 +299,7 @@ function MainAppContent() {
                 />
 
                 {alertsData && (
-                  <AdvisoryCard alerts={alertsData.alerts} />
+                  <AdvisoryCard alerts={alertsData.alerts} smartAlert={alertsData.smart_alert} />
                 )}
 
                 <WeatherCard

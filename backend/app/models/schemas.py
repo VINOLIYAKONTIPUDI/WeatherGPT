@@ -67,10 +67,19 @@ class AdvisoryItem(BaseModel):
     timeframe: str
     icon: str
 
+class SmartAlertData(BaseModel):
+    risk_score: int  # 0 to 100
+    risk_level: str  # 'Normal', 'Advisory', 'High Risk', 'Severe Risk'
+    event_description: str
+    safety_advice: str
+    travel_warning: str
+    detected_hazards: List[str] = []
+
 class AlertsResponse(BaseModel):
     location: LocationCoordinates
     alerts: List[AdvisoryItem]
     count: int
+    smart_alert: Optional[SmartAlertData] = None
 
 class ChatMessage(BaseModel):
     role: str  # 'user' or 'assistant'

@@ -1,5 +1,5 @@
 from typing import List
-from app.models.schemas import WeatherForecastResponse, AdvisoryItem, AlertsResponse
+from app.models.schemas import WeatherForecastResponse, AdvisoryItem, AlertsResponse, SmartAlertData
 
 class AdvisoryService:
     @classmethod
@@ -115,12 +115,113 @@ class AdvisoryService:
         return advisories
 
     @classmethod
+    def calculate_smart_alert(cls, weather_data: WeatherForecastResponse) -> SmartAlertData:
+        cur = weather_data.current
+        hourly = weather_data.hourly
+        loc_name = weather_data.location.name or weather_data.location.city or "your area"
+
+        hazards = []
+        risk_score = 10  # Base pleasant weather baseline
+
+        # 1. Rain & Flood Assessment
+        max_precip = max([h.precipitation for h in hourly[:24]], default=cur.precipitation)
+        max_pop = max([h.precipitation_probability for h in hourly[:24]], default=cur.rain_probability)
+
+        if max_precip >= 25.0 or cur.precipitation >= 25.0:
+            risk_score += 45
+            hazards.append("Flood Risk & Torrential Downpour")
+        elif max_precip >= 10.0 or cur.precipitation >= 10.0:
+            risk_score += 30
+            hazards.append("Heavy Rainfall")
+        elif max_pop >= 70 or cur.rain_probability >= 70:
+            risk_score += 20
+            hazards.append("High Precipitation Probability")
+
+        # 2. Thunderstorm & Hail Assessment
+        has_hail = any(h.weather_code in [96, 99] for h in hourly[:24]) or cur.weather_code in [96, 99]
+        has_storm = any(h.weather_code == 95 for h in hourly[:24]) or cur.weather_code == 95
+
+        if has_hail:
+            risk_score += 40
+            hazards.append("Severe Thunderstorm with Hail")
+        elif has_storm:
+            risk_score += 25
+            hazards.append("Lightning & Thunderstorm Activity")
+
+        # 3. Extreme Temperature Assessment
+        max_temp = max([h.temperature for h in hourly[:24]], default=cur.temperature)
+        min_temp = min([h.temperature for h in hourly[:24]], default=cur.temperature)
+
+        if max_temp >= 42.0 or cur.temperature >= 42.0:
+            risk_score += 35
+            hazards.append("Extreme Heatwave (>42°C)")
+        elif max_temp >= 38.0 or cur.temperature >= 38.0:
+            risk_score += 20
+            hazards.append("High Temperature Stress (>38°C)")
+        elif min_temp <= 4.0 or cur.temperature <= 4.0:
+            risk_score += 30
+            hazards.append("Freezing Temperature / Frost Risk")
+
+        # 4. Wind Hazard Assessment
+        max_wind = max([h.wind_speed for h in hourly[:24]], default=cur.wind_speed)
+        if max_wind >= 45.0 or cur.wind_speed >= 45.0:
+            risk_score += 35
+            hazards.append("Dangerous Storm Wind Gusts (>45 km/h)")
+        elif max_wind >= 30.0 or cur.wind_speed >= 30.0:
+            risk_score += 15
+            hazards.append("Strong Wind Gusts")
+
+        # Cap score between 0 and 100
+        risk_score = max(0, min(100, risk_score))
+
+        # Determine Risk Level Category
+        if risk_score >= 76:
+            risk_level = "Severe Risk"
+        elif risk_score >= 51:
+            risk_level = "High Risk"
+        elif risk_score >= 26:
+            risk_level = "Advisory"
+        else:
+            risk_level = "Normal"
+
+        # Formulate Descriptions & Recommendations based on actual data
+        if hazards:
+            event_desc = f"Active hazards detected in {loc_name}: {', '.join(hazards)}. Peak temp: {max_temp:.1f}°C, Max rain chance: {max_pop}%, Max wind: {max_wind:.1f} km/h."
+        else:
+            event_desc = f"Weather conditions in {loc_name} are mild and normal. Current temperature is {cur.temperature:.1f}°C with {cur.condition.lower()} skies."
+
+        # Actionable Safety Advice
+        if risk_level == "Severe Risk":
+            safety_advice = "🔴 CRITICAL SAFETY STEP: Stay indoors immediately. Move to structurally secure shelter away from trees, glass windows, and low-lying flood channels. Keep mobile devices charged."
+            travel_warning = "🔴 SEVERE TRAVEL HAZARD: Do NOT travel! Highways and urban roads present severe flooding, lightning, and fallen tree hazards."
+        elif risk_level == "High Risk":
+            safety_advice = "🟠 HIGH SAFETY CAUTION: Avoid unnecessary outdoor exposure. Carry emergency rain gear, stay hydrated, and secure outdoor property."
+            travel_warning = "🟠 TRAVEL WARNING: Exercise extreme caution on roads due to slippery conditions, waterlogging, or reduced visibility."
+        elif risk_level == "Advisory":
+            safety_advice = "🟡 ADVISORY: Carry an umbrella or sunscreen. Keep updated with live WeatherGPT hourly forecasts."
+            travel_warning = "🟡 TRAVEL ADVISORY: Allow extra commute time for potential light rain or afternoon sun."
+        else:
+            safety_advice = "🟢 SAFE CONDITIONS: No active weather hazards. Standard daily routines and outdoor activities are safe."
+            travel_warning = "🟢 TRAVEL SAFE: Road and flight travel conditions are clear and favorable."
+
+        return SmartAlertData(
+            risk_score=risk_score,
+            risk_level=risk_level,
+            event_description=event_desc,
+            safety_advice=safety_advice,
+            travel_warning=travel_warning,
+            detected_hazards=hazards
+        )
+
+    @classmethod
     def get_alerts_response(cls, weather_data: WeatherForecastResponse) -> AlertsResponse:
         advisories = cls.generate_advisories(weather_data)
+        smart_alert = cls.calculate_smart_alert(weather_data)
         return AlertsResponse(
             location=weather_data.location,
             alerts=advisories,
-            count=len(advisories)
+            count=len(advisories),
+            smart_alert=smart_alert
         )
 
     @classmethod

@@ -161,3 +161,92 @@ class EmailService:
             except Exception as e:
                 logger.error(f"Failed to send weather notification email via SMTP ({e}).")
 
+    @classmethod
+    async def send_severe_weather_alert_email(cls, recipient_email: str, user_name: str, location_name: str, smart_alert_dict: dict):
+        """Sends an immediate severe weather risk emergency email alert."""
+        risk_score = smart_alert_dict.get("risk_score", 85)
+        risk_level = smart_alert_dict.get("risk_level", "Severe Risk")
+        event_desc = smart_alert_dict.get("event_description", "Extreme weather detected")
+        safety_advice = smart_alert_dict.get("safety_advice", "Stay indoors immediately.")
+        travel_warning = smart_alert_dict.get("travel_warning", "Do not travel.")
+        hazards = smart_alert_dict.get("detected_hazards", [])
+
+        subject = f"🚨 EMERGENCY WEATHER ALERT ({risk_score}% Risk): {location_name}"
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }}
+            .card {{ max-width: 580px; margin: 0 auto; background: #1e293b; border-radius: 20px; padding: 30px; border: 2px solid #ef4444; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4); }}
+            .logo {{ font-size: 24px; font-weight: 800; color: #ef4444; text-align: center; margin-bottom: 10px; }}
+            .alert-banner {{ background: #7f1d1d; border: 1px solid #ef4444; color: #fecaca; font-size: 14px; font-weight: 800; padding: 12px; border-radius: 12px; text-align: center; margin: 15px 0; }}
+            .risk-score {{ font-size: 48px; font-weight: 900; color: #ef4444; text-align: center; margin: 10px 0; }}
+            .box {{ background: #0f172a; padding: 15px; border-radius: 12px; border: 1px solid #334155; margin: 12px 0; font-size: 13px; color: #cbd5e1; }}
+            .footer {{ font-size: 12px; color: #94a3b8; text-align: center; margin-top: 30px; border-top: 1px solid #334155; padding-top: 15px; }}
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="logo">🚨 WeatherGPT Emergency Alert</div>
+            <div class="alert-banner">CRITICAL WEATHER HAZARD DETECTED FOR {location_name.upper()}</div>
+            
+            <div class="risk-score">{risk_score}% RISK</div>
+            <p style="text-align:center; font-weight:700; color:#ef4444;">Level: {risk_level}</p>
+
+            <h3>Hello {user_name},</h3>
+            <p>Our live WeatherGPT Smart Safety System detected severe risk weather conditions in <strong>{location_name}</strong>:</p>
+
+            <div class="box">
+              <strong>⚠️ Active Hazards:</strong> {', '.join(hazards) if hazards else 'Extreme severe weather'}
+              <br/><br/>
+              <strong>ℹ️ What is happening:</strong> {event_desc}
+            </div>
+
+            <div class="box" style="border-color: #ef4444; background: #450a0a;">
+              <strong>🛡️ Recommended Safety Steps:</strong>
+              <p style="margin-top: 5px; color: #fecaca;">{safety_advice}</p>
+            </div>
+
+            <div class="box" style="border-color: #f59e0b; background: #451a03;">
+              <strong>🚗 Travel Status:</strong>
+              <p style="margin-top: 5px; color: #fef08a;">{travel_warning}</p>
+            </div>
+
+            <div class="footer">
+              © 2026 WeatherGPT — Conversational Voice-First Weather Intelligence Platform
+            </div>
+          </div>
+        </body>
+        </html>
+        """
+
+        print("\n" + "="*60)
+        print(f"  🚨 EMERGENCY SEVERE WEATHER EMAIL DISPATCHED TO {recipient_email}")
+        print(f"  Location: {location_name} | Risk: {risk_score}% ({risk_level})")
+        print("="*60 + "\n")
+
+        if settings.SMTP_USERNAME and settings.SMTP_PASSWORD and settings.SMTP_SERVER:
+            try:
+                def send_mail():
+                    msg = MIMEMultipart("alternative")
+                    msg["Subject"] = subject
+                    msg["From"] = settings.EMAIL_FROM or settings.SMTP_USERNAME
+                    msg["To"] = recipient_email
+                    
+                    part = MIMEText(html_content, "html")
+                    msg.attach(part)
+                    
+                    with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
+                        server.starttls()
+                        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                        server.sendmail(msg["From"], recipient_email, msg.as_string())
+
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, send_mail)
+                logger.info(f"Successfully sent severe weather email alert to {recipient_email}")
+            except Exception as e:
+                logger.error(f"Failed to send severe weather email alert via SMTP ({e}).")
+
+
