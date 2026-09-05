@@ -42,7 +42,14 @@ export const requestPushNotificationPermission = async (vapidKey = null) => {
   }
 
   try {
-    const permission = await Notification.requestPermission();
+    let permission;
+    try {
+      permission = await Notification.requestPermission();
+    } catch (permErr) {
+      console.warn('Notification.requestPermission failed (likely non-HTTPS origin):', permErr);
+      return { success: false, reason: 'Notifications require a secure HTTPS connection or were blocked.' };
+    }
+
     if (permission !== 'granted') {
       return { success: false, permission, reason: 'Notification permission denied by user.' };
     }
@@ -59,9 +66,9 @@ export const requestPushNotificationPermission = async (vapidKey = null) => {
     }
 
     let token = null;
-    const messaging = await getFirebaseMessaging();
-    if (messaging && swRegistration) {
-      try {
+    try {
+      const messaging = await getFirebaseMessaging();
+      if (messaging && swRegistration) {
         const tokenOptions = {
           serviceWorkerRegistration: swRegistration
         };
@@ -70,9 +77,9 @@ export const requestPushNotificationPermission = async (vapidKey = null) => {
         }
         token = await getToken(messaging, tokenOptions);
         console.log('Firebase Cloud Messaging Token acquired:', token);
-      } catch (tokenErr) {
-        console.warn('FCM Token generation note:', tokenErr.message);
       }
+    } catch (tokenErr) {
+      console.warn('FCM Token generation note:', tokenErr.message);
     }
 
     return {
@@ -91,13 +98,18 @@ export const requestPushNotificationPermission = async (vapidKey = null) => {
  * Listen for foreground emergency alert messages pushed via FCM
  */
 export const onEmergencyForegroundMessage = async (callback) => {
-  const messaging = await getFirebaseMessaging();
-  if (!messaging) return () => {};
+  try {
+    const messaging = await getFirebaseMessaging();
+    if (!messaging) return () => {};
 
-  return onMessage(messaging, (payload) => {
-    console.log('Foreground emergency alert received from Firebase:', payload);
-    if (callback) callback(payload);
-  });
+    return onMessage(messaging, (payload) => {
+      console.log('Foreground emergency alert received from Firebase:', payload);
+      if (callback) callback(payload);
+    });
+  } catch (e) {
+    console.warn('onEmergencyForegroundMessage error:', e);
+    return () => {};
+  }
 };
 
 /**
@@ -110,51 +122,62 @@ export const triggerDeviceDisasterPush = async ({
   location = 'Your Area',
   vibratePattern = [500, 200, 500, 200, 800]
 }) => {
-  // 1. Hardware Phone Vibration
-  if (typeof navigator !== 'undefined' && navigator.vibrate) {
-    try {
-      navigator.vibrate(vibratePattern);
-    } catch (e) {
-      console.warn('Hardware vibration failed:', e);
-    }
-  }
-
-  // 2. System Push Notification
-  if (typeof window !== 'undefined' && 'Notification' in window) {
-    if (Notification.permission === 'granted') {
-      const options = {
-        body: `📍 ${location}\n${body}`,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        vibrate: vibratePattern,
-        tag: 'weathergpt-hazard-' + Date.now(),
-        renotify: true,
-        requireInteraction: true,
-        data: {
-          url: window.location.href,
-          timestamp: Date.now()
-        }
-      };
-
+  try {
+    // 1. Hardware Phone Vibration
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
       try {
-        if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
-          const reg = await navigator.serviceWorker.ready;
-          if (reg && reg.showNotification) {
-            await reg.showNotification(title, options);
-            return true;
+        navigator.vibrate(vibratePattern);
+      } catch (e) {
+        console.warn('Hardware vibration failed:', e);
+      }
+    }
+
+    // 2. System Push Notification
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      let isGranted = false;
+      try {
+        isGranted = Notification.permission === 'granted';
+      } catch (e) {
+        isGranted = false;
+      }
+
+      if (isGranted) {
+        const options = {
+          body: `📍 ${location}\n${body}`,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          vibrate: vibratePattern,
+          tag: 'weathergpt-hazard-' + Date.now(),
+          renotify: true,
+          requireInteraction: true,
+          data: {
+            url: window.location.href,
+            timestamp: Date.now()
           }
-        }
-      } catch (swErr) {
-        console.warn('SW notification fallback to window.Notification:', swErr);
-      }
+        };
 
-      try {
-        new Notification(title, options);
-        return true;
-      } catch (notifErr) {
-        console.warn('Native notification failed:', notifErr);
+        try {
+          if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+            const reg = await navigator.serviceWorker.ready;
+            if (reg && reg.showNotification) {
+              await reg.showNotification(title, options);
+              return true;
+            }
+          }
+        } catch (swErr) {
+          console.warn('SW notification fallback to window.Notification:', swErr);
+        }
+
+        try {
+          new Notification(title, options);
+          return true;
+        } catch (notifErr) {
+          console.warn('Native notification failed:', notifErr);
+        }
       }
     }
+  } catch (err) {
+    console.warn('triggerDeviceDisasterPush caught error:', err);
   }
 
   return false;

@@ -20,7 +20,16 @@ export default function EmergencyBuzzModal({
   const [errorMsg, setErrorMsg] = useState('');
 
   // Firebase Web Push & Phone Vibration States (100% Free)
-  const [pushPermission, setPushPermission] = useState(typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported');
+  const [pushPermission, setPushPermission] = useState(() => {
+    try {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        return Notification.permission;
+      }
+    } catch (e) {
+      // Insecure origin or restricted browser
+    }
+    return 'unsupported';
+  });
   const [isArmingPush, setIsArmingPush] = useState(false);
   const [pushStatusMsg, setPushStatusMsg] = useState('');
 
