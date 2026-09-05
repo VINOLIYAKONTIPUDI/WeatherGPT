@@ -8,7 +8,7 @@ from app.services.sms_service import SMSService
 
 async def test_sms_broadcast():
     print("=== TEST 1: Emergency SMS Broadcast (Thunderstorm & Flash Flood Hazard) ===")
-    test_phones = ["+919876543210", "+919848022338"]
+    test_phones = ["+917993678737", "+919959051684"]
     res = await SMSService.dispatch_emergency_broadcast(
         phone_numbers=test_phones,
         alert_type="Severe Thunderstorm & Lightning Warning",

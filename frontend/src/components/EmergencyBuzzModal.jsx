@@ -12,8 +12,7 @@ export default function EmergencyBuzzModal({
   const [phoneInput, setPhoneInput] = useState('');
   const [recipientList, setRecipientList] = useState([
     '+917993678737',
-    '+919876543210',
-    '+919848022338'
+    '+919959051684'
   ]);
   const [isSirenPlaying, setIsSirenPlaying] = useState(false);
   const [isDispatching, setIsDispatching] = useState(false);

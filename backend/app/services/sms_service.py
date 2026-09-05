@@ -32,8 +32,7 @@ TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "")
 # Default emergency group numbers for testing & live demonstrations
 DEFAULT_EMERGENCY_GROUP = [
     "+917993678737",
-    "+919876543210",
-    "+919848022338"
+    "+919959051684"
 ]
 
 class SMSService:
