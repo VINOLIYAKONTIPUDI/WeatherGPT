@@ -144,30 +144,49 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = speakLang;
-    utterance.rate = 1.0;
+    utterance.rate = 0.95; // Slightly slower for clear regional pronunciation
     utterance.pitch = 1.0;
 
     const voices = synthRef.current.getVoices();
-    const langCode = speakLang.split('-')[0];
+    const langCode = speakLang.split('-')[0].toLowerCase();
+    const fullCode = speakLang.toLowerCase().replace('_', '-');
     
-    // Pick matching voice for language code
-    const matchingVoice = voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith(langCode)) ||
-                          voices.find(v => v.lang.includes('IN')) ||
-                          voices[0];
+    // Strict voice search for requested language
+    let matchingVoice = voices.find(v => v.lang.toLowerCase().replace('_', '-') === fullCode) ||
+                        voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith(langCode));
+
+    // Secondary search by language name if BCP code tag differs
+    if (!matchingVoice) {
+      if (langCode === 'te') {
+        matchingVoice = voices.find(v => v.name.toLowerCase().includes('telugu') || v.name.includes('తెలుగు'));
+      } else if (langCode === 'hi') {
+        matchingVoice = voices.find(v => v.name.toLowerCase().includes('hindi') || v.name.includes('हिन्दी'));
+      } else if (langCode === 'ta') {
+        matchingVoice = voices.find(v => v.name.toLowerCase().includes('tamil') || v.name.includes('தமிழ்'));
+      }
+    }
+
+    // IMPORTANT: If no native voice for this language is found, DO NOT set an English voice!
+    // Leaving utterance.voice unset allows Chrome / Edge to use their online/native synthesizer for utterance.lang.
     if (matchingVoice) {
       utterance.voice = matchingVoice;
+      console.log(`[TTS Service] 🔊 Using matching voice '${matchingVoice.name}' (${matchingVoice.lang}) for language: ${speakLang}`);
+    } else {
+      console.log(`[TTS Service] 🔊 No dedicated local voice found for '${speakLang}'. Relying on browser engine with lang='${speakLang}'.`);
     }
 
     utterance.onstart = () => {
+      console.log(`[TTS Service] ▶️ Started speaking response in ${speakLang}`);
       setState('speaking');
     };
 
     utterance.onend = () => {
+      console.log(`[TTS Service] ⏹️ Finished speaking in ${speakLang}`);
       setState('idle');
     };
 
     utterance.onerror = (e) => {
-      console.warn('SpeechSynthesis error:', e);
+      console.warn(`[TTS Service] ⚠️ SpeechSynthesis error for ${speakLang}:`, e);
       setState('idle');
     };
 

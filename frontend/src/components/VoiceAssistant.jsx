@@ -69,7 +69,9 @@ export default function VoiceAssistant({
         { role: 'assistant', content: response.answer }
       ]);
 
-      speak(response.answer, language);
+      const speechLanguage = response.language || language;
+      console.log(`[VoiceAssistant] 💬 Speaking response in language: '${speechLanguage}'`);
+      speak(response.answer, speechLanguage);
     } catch (err) {
       console.error('Failed to get answer:', err);
       setState('error');

@@ -11,7 +11,7 @@ export async function fetchWeatherForecast(lat, lon, name = 'Selected Location')
   }
 }
 
-export async function sendChatMessage(message, location, language = 'en-IN', conversation = []) {
+export async function sendChatMessage(message, location, language, conversation = []) {
   try {
     const res = await fetch(`${API_BASE}/chat`, {
       method: 'POST',
