@@ -176,7 +176,7 @@ export default function Navbar({
               title="Trigger Emergency Weather Disaster Broadcast & Siren"
             >
               <ShieldAlert className="w-3.5 h-3.5 text-white" />
-              <span className="hidden sm:inline">🚨 Alert SMS</span>
+              <span className="hidden sm:inline">🚨 Alert SMS & Buzz</span>
             </button>
           )}
         </div>

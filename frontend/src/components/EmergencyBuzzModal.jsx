@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, BellRing, PhoneCall, Volume2, VolumeX, Send, CheckCircle2, ShieldAlert, X, Radio, Loader2 } from 'lucide-react';
+import { AlertTriangle, BellRing, PhoneCall, Volume2, VolumeX, Send, CheckCircle2, ShieldAlert, X, Radio, Loader2, Smartphone, Zap } from 'lucide-react';
 import { broadcastEmergencySMS } from '../services/api';
+import { requestPushNotificationPermission, triggerDeviceDisasterPush } from '../services/firebase';
 
 export default function EmergencyBuzzModal({
   isOpen,
@@ -18,6 +19,11 @@ export default function EmergencyBuzzModal({
   const [isDispatching, setIsDispatching] = useState(false);
   const [dispatchResult, setDispatchResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Firebase Web Push & Phone Vibration States (100% Free)
+  const [pushPermission, setPushPermission] = useState(typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported');
+  const [isArmingPush, setIsArmingPush] = useState(false);
+  const [pushStatusMsg, setPushStatusMsg] = useState('');
 
   const audioCtxRef = useRef(null);
   const oscRef1 = useRef(null);
@@ -120,6 +126,42 @@ export default function EmergencyBuzzModal({
     setRecipientList(prev => prev.filter(p => p !== phone));
   };
 
+  const handleArmPushAlerts = async () => {
+    setIsArmingPush(true);
+    setPushStatusMsg('');
+    setErrorMsg('');
+    try {
+      const res = await requestPushNotificationPermission();
+      if (res.success) {
+        setPushPermission('granted');
+        setPushStatusMsg('✅ Free Firebase Web Push & Vibration armed on this device!');
+        await triggerDeviceDisasterPush({
+          title: '🚨 WEATHERGPT DISASTER ALARM ARMED',
+          body: `High-priority alerts activated for ${locName}. Phone will vibrate and sound siren.`,
+          location: locName
+        });
+        startSirenBuzz();
+      } else {
+        setPushPermission(res.permission || 'denied');
+        setErrorMsg(res.reason || 'Failed to activate push notifications.');
+      }
+    } catch (e) {
+      setErrorMsg('Error enabling push: ' + e.message);
+    } finally {
+      setIsArmingPush(false);
+    }
+  };
+
+  const handleTestPhoneBuzz = async () => {
+    startSirenBuzz();
+    await triggerDeviceDisasterPush({
+      title: `🚨 DISASTER ALERT: ${alertTitle}`,
+      body: `Immediate emergency vibration & alarm test for ${locName}. Stay safe!`,
+      location: locName
+    });
+    setPushStatusMsg('⚡ Phone buzz, vibration & lock-screen push notification triggered!');
+  };
+
   const handleBroadcastSMS = async () => {
     if (recipientList.length === 0) {
       setErrorMsg('Please add at least one recipient phone number.');
@@ -129,6 +171,15 @@ export default function EmergencyBuzzModal({
     setIsDispatching(true);
     setErrorMsg('');
     try {
+      // 1. Dispatch Physical Device Push Alert & Vibration (100% Free Firebase/Web Push)
+      triggerDeviceDisasterPush({
+        title: `🚨 EAS EMERGENCY: ${alertTitle}`,
+        body: `${recommendation} (Target: ${locName})`,
+        location: locName
+      });
+      startSirenBuzz();
+
+      // 2. Dispatch Cellular Broadcast SMS
       const res = await broadcastEmergencySMS(
         alertTitle,
         locName,
@@ -243,6 +294,57 @@ export default function EmergencyBuzzModal({
               </span>
             ))}
           </div>
+        </div>
+
+        {/* 100% Free Firebase & Physical Device Push Section */}
+        <div className="mb-5 p-4 rounded-2xl bg-dark-900/80 border border-cyan-500/40 relative z-10">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5 uppercase tracking-wider">
+              <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+              100% Free Phone Push & Vibration (Firebase Ready)
+            </span>
+            <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+              pushPermission === 'granted'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+            }`}>
+              {pushPermission === 'granted' ? '⚡ Armed & Ready' : 'Permission Required'}
+            </span>
+          </div>
+
+          <p className="text-[11px] text-slate-300 mb-3 leading-relaxed">
+            Direct lock-screen disaster push alerts & hardware phone vibration without cellular SMS charges (₹0 Free Forever).
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {pushPermission !== 'granted' ? (
+              <button
+                type="button"
+                onClick={handleArmPushAlerts}
+                disabled={isArmingPush}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-black text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-cyan-500/20"
+              >
+                {isArmingPush ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                <span>Arm Free Phone Vibration & Push</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleTestPhoneBuzz}
+                className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 font-extrabold text-xs transition-all flex items-center gap-1.5"
+              >
+                <Zap className="w-3.5 h-3.5 text-emerald-400 animate-bounce" />
+                <span>Test Phone Vibration & Push Notification</span>
+              </button>
+            )}
+          </div>
+
+          {pushStatusMsg && (
+            <div className="mt-2.5 text-[11px] text-emerald-300 font-semibold flex items-center gap-1.5 animate-fade-in">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>{pushStatusMsg}</span>
+            </div>
+          )}
         </div>
 
         {/* Error Alert */}
