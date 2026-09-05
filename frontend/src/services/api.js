@@ -1,10 +1,23 @@
 const API_BASE = '/api';
 
+async function parseResponseJson(res, defaultErrMsg = 'Request failed') {
+  let data;
+  try {
+    const text = await res.text();
+    data = text ? JSON.parse(text) : {};
+  } catch (e) {
+    data = {};
+  }
+  if (!res.ok) {
+    throw new Error(data.detail || data.message || `${defaultErrMsg} (Status ${res.status})`);
+  }
+  return data;
+}
+
 export async function fetchWeatherForecast(lat, lon, name = 'Selected Location') {
   try {
     const res = await fetch(`${API_BASE}/weather/forecast?lat=${lat}&lon=${lon}&name=${encodeURIComponent(name)}`);
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    return await res.json();
+    return await parseResponseJson(res, 'Weather fetch failed');
   } catch (err) {
     console.warn('Backend API unavailable, returning null for fallback handling:', err);
     return null;
@@ -23,8 +36,7 @@ export async function sendChatMessage(message, location, language, conversation 
         conversation,
       }),
     });
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    return await res.json();
+    return await parseResponseJson(res, 'Chat request failed');
   } catch (err) {
     console.error('Chat API Error:', err);
     throw err;
@@ -35,8 +47,7 @@ export async function fetchWeatherAlerts(lat, lon, name = 'Selected Location') {
   if (lat === undefined || lon === undefined || lat === null || lon === null) return null;
   try {
     const res = await fetch(`${API_BASE}/alerts?lat=${lat}&lon=${lon}&name=${encodeURIComponent(name)}`);
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    return await res.json();
+    return await parseResponseJson(res, 'Alerts fetch failed');
   } catch (err) {
     console.warn('Alerts API error:', err);
     return null;
@@ -46,8 +57,7 @@ export async function fetchWeatherAlerts(lat, lon, name = 'Selected Location') {
 export async function searchLocations(query) {
   try {
     const res = await fetch(`${API_BASE}/location/search?q=${encodeURIComponent(query)}`);
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    return await res.json();
+    return await parseResponseJson(res, 'Location search failed');
   } catch (err) {
     console.warn('Location search API error:', err);
     return [];
@@ -57,8 +67,7 @@ export async function searchLocations(query) {
 export async function reverseGeocode(lat, lon) {
   try {
     const res = await fetch(`${API_BASE}/location/reverse?lat=${lat}&lon=${lon}`);
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    return await res.json();
+    return await parseResponseJson(res, 'Reverse geocode failed');
   } catch (err) {
     console.warn('Reverse geocode API error:', err);
     return { latitude: lat, longitude: lon, name: 'Current Location', country: 'India' };
@@ -72,9 +81,7 @@ export async function signupUser(name, email, password, confirm_password) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, email, password, confirm_password }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Signup failed.');
-  return data;
+  return await parseResponseJson(res, 'Signup failed');
 }
 
 export async function verifyOTP(email, otp) {
@@ -83,9 +90,7 @@ export async function verifyOTP(email, otp) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, otp }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'OTP Verification failed.');
-  return data;
+  return await parseResponseJson(res, 'OTP Verification failed');
 }
 
 export async function resendOTP(email) {
@@ -94,9 +99,7 @@ export async function resendOTP(email) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Failed to resend OTP.');
-  return data;
+  return await parseResponseJson(res, 'Failed to resend OTP');
 }
 
 export async function loginUser(email, password) {
@@ -105,9 +108,7 @@ export async function loginUser(email, password) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Login failed.');
-  return data;
+  return await parseResponseJson(res, 'Login failed');
 }
 
 export async function getCurrentUser(token) {
@@ -116,8 +117,5 @@ export async function getCurrentUser(token) {
       'Authorization': `Bearer ${token}`
     },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Invalid token.');
-  return data;
+  return await parseResponseJson(res, 'Invalid token');
 }
-

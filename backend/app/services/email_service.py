@@ -11,7 +11,7 @@ class EmailService:
     @classmethod
     async def send_otp_email(cls, recipient_email: str, otp: str, user_name: str = "User"):
         """Sends 6-digit verification OTP email to user."""
-        subject = f"🔐 Your WeatherGPT Verification Code: {otp}"
+        subject = f"Your WeatherGPT Verification Code: {otp}"
         
         html_content = f"""
         <!DOCTYPE html>
@@ -43,10 +43,14 @@ class EmailService:
         </html>
         """
 
-        # ALWAYS log OTP prominently in console for local debugging & testing
-        print("\n" + "="*60)
-        print(f"  🔑 VERIFICATION OTP FOR {recipient_email}: [{otp}] (Expires in 5 minutes)")
-        print("="*60 + "\n")
+        # Log OTP prominently in console for verification & testing
+        logger.info(f"[EmailService] VERIFICATION OTP FOR {recipient_email}: [{otp}] (Expires in 5 minutes)")
+        try:
+            print("\n" + "="*60)
+            print(f"  VERIFICATION OTP FOR {recipient_email}: [{otp}] (Expires in 5 minutes)")
+            print("="*60 + "\n")
+        except Exception:
+            pass
 
         # If SMTP server credentials are provided, send live email
         if settings.SMTP_USERNAME and settings.SMTP_PASSWORD and settings.SMTP_SERVER:
