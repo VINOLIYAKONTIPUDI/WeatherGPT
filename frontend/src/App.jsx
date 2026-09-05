@@ -5,7 +5,9 @@ import VoiceAssistant from './components/VoiceAssistant';
 import WeatherCard from './components/WeatherCard';
 import ForecastChart from './components/ForecastChart';
 import AdvisoryCard from './components/AdvisoryCard';
+import AgricultureAdvisory from './components/AgricultureAdvisory';
 import WeatherMap from './components/WeatherMap';
+import WeatherNotifications from './components/WeatherNotifications';
 import AuthModal from './components/auth/AuthModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { fetchWeatherForecast, fetchWeatherAlerts } from './services/api';
@@ -14,10 +16,31 @@ import { MapPin, Search, Loader2 } from 'lucide-react';
 
 const LOCATION_STORAGE_KEY = 'weathergpt_active_location';
 const LANGUAGE_STORAGE_KEY = 'weathergpt_language';
+const THEME_STORAGE_KEY = 'weathergpt_theme';
 
 function MainAppContent() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Theme State
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      if (saved) return saved;
+    } catch (e) {}
+    return 'dark';
+  });
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (e) {}
+  }, [theme]);
 
   // 1. Single Source of Truth for Active Location (stored in localStorage)
   const [currentLocation, setCurrentLocation] = useState(() => {
@@ -47,6 +70,7 @@ function MainAppContent() {
   const [weatherData, setWeatherData] = useState(null);
   const [alertsData, setAlertsData] = useState(null);
   const [loadingWeather, setLoadingWeather] = useState(false);
+
 
   // Load weather & advisories when location changes
   const loadLocationWeather = useCallback(async (loc) => {
@@ -134,6 +158,8 @@ function MainAppContent() {
         currentLocation={currentLocation}
         language={language}
         setLanguage={setLanguage}
+        theme={theme}
+        setTheme={setTheme}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 pb-16">
@@ -203,6 +229,13 @@ function MainAppContent() {
               />
             )}
 
+            {currentLocation && (
+              <AgricultureAdvisory
+                weatherData={weatherData}
+                location={currentLocation}
+              />
+            )}
+
             {alertsData && alertsData.alerts.length > 0 && (
               <AdvisoryCard alerts={alertsData.alerts} />
             )}
@@ -226,6 +259,11 @@ function MainAppContent() {
                   location={currentLocation}
                 />
 
+                <AgricultureAdvisory
+                  weatherData={weatherData}
+                  location={currentLocation}
+                />
+
                 {weatherData && (
                   <ForecastChart
                     hourlyData={weatherData.hourly}
@@ -237,6 +275,8 @@ function MainAppContent() {
                   location={currentLocation}
                   currentWeather={weatherData?.current}
                 />
+
+                <WeatherNotifications currentLocation={currentLocation} />
               </>
             ) : (
               <div className="text-center py-12 text-slate-400">
@@ -253,6 +293,11 @@ function MainAppContent() {
           <div>
             {currentLocation ? (
               <>
+                <AgricultureAdvisory
+                  weatherData={weatherData}
+                  location={currentLocation}
+                />
+
                 {alertsData && (
                   <AdvisoryCard alerts={alertsData.alerts} />
                 )}
@@ -269,6 +314,13 @@ function MainAppContent() {
                 <p className="text-xs mt-1">Please select your location using the search bar above or click "Use My Location".</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab 4: Weather Email Notifications */}
+        {activeTab === 'notifications' && (
+          <div>
+            <WeatherNotifications currentLocation={currentLocation} />
           </div>
         )}
       </main>

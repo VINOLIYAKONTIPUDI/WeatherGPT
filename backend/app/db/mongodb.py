@@ -10,6 +10,7 @@ class MongoDB:
     client: Optional[AsyncIOMotorClient] = None
     db = None
     in_memory_users: Dict[str, Dict[str, Any]] = {} # Fallback in-memory collection if Mongo Atlas offline
+    in_memory_notifications: Dict[str, Dict[str, Any]] = {} # Fallback in-memory notification schedules
 
 db_instance = MongoDB()
 

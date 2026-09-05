@@ -65,21 +65,22 @@ class WeatherService:
         )
         
         hourly = []
-        for i in range(24):
-            hour_str = f"{i:02d}:00"
-            temp = round(26 + 7 * (1 - abs(i - 14) / 10), 1)
-            pop = 70 if 7 <= i <= 11 else 20
-            hourly.append(HourlyForecastItem(
-                time=hour_str,
-                temperature=temp,
-                apparent_temperature=round(temp + 2.5, 1),
-                precipitation_probability=pop,
-                precipitation=2.5 if pop > 50 else 0.0,
-                weather_code=61 if pop > 50 else 2,
-                condition="Slight Rain" if pop > 50 else "Partly Cloudy",
-                wind_speed=12.0 + (i % 5),
-                uv_index=round(max(0, 8 - abs(i - 13) * 1.5), 1)
-            ))
+        for day in range(7):
+            for i in range(24):
+                hour_str = f"{i:02d}:00"
+                temp = round(26 + (day % 3) + 7 * (1 - abs(i - 14) / 10), 1)
+                pop = 70 if (7 <= i <= 11 and day == 1) else (30 if 13 <= i <= 17 else 10)
+                hourly.append(HourlyForecastItem(
+                    time=hour_str,
+                    temperature=temp,
+                    apparent_temperature=round(temp + 2.5, 1),
+                    precipitation_probability=pop,
+                    precipitation=2.5 if pop > 50 else 0.0,
+                    weather_code=61 if pop > 50 else 2,
+                    condition="Slight Rain" if pop > 50 else "Partly Cloudy",
+                    wind_speed=12.0 + (i % 5),
+                    uv_index=round(max(0, 8 - abs(i - 13) * 1.5), 1)
+                ))
             
         daily = []
         days = ["Today", "Tomorrow", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7"]
@@ -173,10 +174,10 @@ class WeatherService:
                     sunset=sunset_val
                 )
 
-                # Parse hourly forecast (24 hours)
+                # Parse hourly forecast (all 7 days / 168 hours)
                 hourly_list = []
                 h_data = data.get("hourly", {})
-                times = h_data.get("time", [])[:24]
+                times = h_data.get("time", [])
                 temps = h_data.get("temperature_2m", [])
                 app_temps = h_data.get("apparent_temperature", [])
                 pops = h_data.get("precipitation_probability", [])

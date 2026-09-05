@@ -132,7 +132,48 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
     }
   }, []);
 
-  // Text-To-Speech Output
+  const chunksRef = useRef([]);
+  const chunkIndexRef = useRef(0);
+  const isCancelledRef = useRef(false);
+
+  // Helper to split text into natural speech chunks
+  const splitTextIntoChunks = (text) => {
+    if (!text) return [];
+    const cleaned = text.replace(/\*\*/g, '').trim();
+    if (!cleaned) return [];
+
+    const sentences = cleaned.split(/(?<=[.!?|।\n])\s+/);
+    const chunks = [];
+
+    for (const s of sentences) {
+      const trimmed = s.trim();
+      if (!trimmed) continue;
+
+      if (trimmed.length > 120) {
+        const parts = trimmed.split(/(?<=[,;])\s+/);
+        for (const p of parts) {
+          if (p.trim()) chunks.push(p.trim());
+        }
+      } else {
+        chunks.push(trimmed);
+      }
+    }
+
+    return chunks.length > 0 ? chunks : [cleaned];
+  };
+
+  // Stop Speech Output & Clear Queue
+  const stopSpeaking = useCallback(() => {
+    isCancelledRef.current = true;
+    if (synthRef.current) {
+      synthRef.current.cancel();
+    }
+    chunksRef.current = [];
+    chunkIndexRef.current = 0;
+    setState('idle');
+  }, []);
+
+  // Text-To-Speech Output (Sequential Chunks)
   const speak = useCallback((text, speakLang = language) => {
     if (!synthRef.current || !text) {
       setState('idle');
@@ -140,47 +181,74 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
     }
 
     setLastResponseText(text);
-    synthRef.current.cancel();
+    
+    // Stop ongoing speech & reset flags
+    stopSpeaking();
+    isCancelledRef.current = false;
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = speakLang;
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
+    const chunks = splitTextIntoChunks(text);
+    if (chunks.length === 0) {
+      setState('idle');
+      return;
+    }
+
+    chunksRef.current = chunks;
+    chunkIndexRef.current = 0;
 
     const voices = synthRef.current.getVoices();
-    const langCode = speakLang.split('-')[0];
+    const langPrefix = speakLang.split('-')[0].toLowerCase();
     
-    // Pick matching voice for language code
-    const matchingVoice = voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith(langCode)) ||
+    // Pick matching voice for language code (Telugu, Hindi, English)
+    const matchingVoice = voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith(speakLang.toLowerCase())) ||
+                          voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith(langPrefix)) ||
+                          voices.find(v => v.name.toLowerCase().includes(langPrefix === 'te' ? 'telugu' : (langPrefix === 'hi' ? 'hindi' : 'english'))) ||
                           voices.find(v => v.lang.includes('IN')) ||
                           voices[0];
-    if (matchingVoice) {
-      utterance.voice = matchingVoice;
-    }
 
-    utterance.onstart = () => {
-      setState('speaking');
+    const speakNextChunk = () => {
+      if (isCancelledRef.current) return;
+
+      if (chunkIndexRef.current >= chunksRef.current.length) {
+        setState('idle');
+        return;
+      }
+
+      const chunkText = chunksRef.current[chunkIndexRef.current];
+      chunkIndexRef.current += 1;
+
+      const utterance = new SpeechSynthesisUtterance(chunkText);
+      utterance.lang = speakLang;
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+
+      if (matchingVoice) {
+        utterance.voice = matchingVoice;
+      }
+
+      utterance.onstart = () => {
+        if (!isCancelledRef.current) {
+          setState('speaking');
+        }
+      };
+
+      utterance.onend = () => {
+        if (!isCancelledRef.current) {
+          speakNextChunk();
+        }
+      };
+
+      utterance.onerror = (e) => {
+        console.warn('SpeechSynthesis chunk error:', e);
+        if (!isCancelledRef.current) {
+          speakNextChunk();
+        }
+      };
+
+      synthRef.current.speak(utterance);
     };
 
-    utterance.onend = () => {
-      setState('idle');
-    };
-
-    utterance.onerror = (e) => {
-      console.warn('SpeechSynthesis error:', e);
-      setState('idle');
-    };
-
-    synthRef.current.speak(utterance);
-  }, [language]);
-
-  // Stop Speech Output
-  const stopSpeaking = useCallback(() => {
-    if (synthRef.current) {
-      synthRef.current.cancel();
-    }
-    setState('idle');
-  }, []);
+    speakNextChunk();
+  }, [language, stopSpeaking]);
 
   // Replay Last Response
   const replaySpeech = useCallback(() => {
@@ -188,6 +256,7 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
       speak(lastResponseText, language);
     }
   }, [lastResponseText, language, speak]);
+
 
   const clearTranscript = useCallback(() => {
     setTranscript('');

@@ -121,3 +121,63 @@ export async function getCurrentUser(token) {
   return data;
 }
 
+export async function fetchCropAdvisory(crop, stage, weatherData = null) {
+  try {
+    const res = await fetch(`${API_BASE}/advisory/crop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ crop, stage, weather_data: weatherData }),
+    });
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('Crop advisory API unavailable, returning fallback:', err);
+    return null;
+  }
+}
+
+// Scheduled Weather Notifications API
+export async function scheduleNotification(token, targetDate, targetTime, type, location) {
+  const res = await fetch(`${API_BASE}/notifications/schedule`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      target_date: targetDate,
+      target_time: targetTime,
+      type,
+      location
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'Failed to schedule notification.');
+  return data;
+}
+
+export async function fetchNotifications(token) {
+  const res = await fetch(`${API_BASE}/notifications`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'Failed to fetch notifications.');
+  return data;
+}
+
+export async function deleteNotification(token, notifId) {
+  const res = await fetch(`${API_BASE}/notifications/${notifId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'Failed to delete notification.');
+  return data;
+}
+
+
+

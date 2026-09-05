@@ -132,4 +132,24 @@ class AuthTokenResponse(BaseModel):
     token_type: str = "bearer"
     user: UserResponse
 
+# Weather Notification Schemas
+class ScheduleNotificationRequest(BaseModel):
+    target_date: str  # 'Today', 'Tomorrow', 'Day After Tomorrow', or 'YYYY-MM-DD'
+    target_time: str  # 'HH:MM' (24-hour format)
+    type: str = "full"  # 'rain', 'temperature', 'full'
+    location: Optional[LocationCoordinates] = None
+
+class NotificationItemResponse(BaseModel):
+    id: str
+    user_email: str
+    user_name: str
+    target_date: str
+    target_time: str
+    scheduled_at: str  # ISO timestamp
+    type: str
+    status: str  # 'pending', 'processing', 'sent', 'failed'
+    location_name: Optional[str] = "Selected Location"
+    created_at: str
+
+
 

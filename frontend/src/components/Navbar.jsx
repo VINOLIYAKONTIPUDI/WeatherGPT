@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, LayoutDashboard, AlertTriangle, CloudSun, MapPin, LogOut, UserCheck } from 'lucide-react';
+import { Mic, LayoutDashboard, AlertTriangle, CloudSun, MapPin, LogOut, UserCheck, Sun, Moon, Bell } from 'lucide-react';
 import { getTranslation } from '../constants/languages';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,7 +9,9 @@ export default function Navbar({
   alertCount = 0,
   currentLocation,
   language = 'en-IN',
-  setLanguage
+  setLanguage,
+  theme = 'dark',
+  setTheme
 }) {
   const { user, logout, isAuthenticated } = useAuth();
 
@@ -106,6 +108,22 @@ export default function Navbar({
             </div>
           )}
 
+          {/* Small Theme Toggle Button */}
+          {setTheme && (
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="p-2 rounded-2xl bg-dark-800/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-all flex items-center justify-center shrink-0 shadow-sm"
+              title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+              aria-label="Toggle Theme"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-indigo-400" />
+              )}
+            </button>
+          )}
+
           {/* User Profile Chip & Logout Button */}
           {isAuthenticated && user && (
             <div className="flex items-center gap-2 bg-dark-800/90 p-1 pl-2.5 pr-1.5 rounded-2xl border border-slate-800 text-xs">
@@ -164,6 +182,17 @@ export default function Navbar({
                   {alertCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                activeTab === 'notifications'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Bell className="w-3.5 h-3.5" /> Notifications
             </button>
           </nav>
         </div>

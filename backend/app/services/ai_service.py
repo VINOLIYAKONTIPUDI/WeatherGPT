@@ -37,15 +37,27 @@ class AIService:
         return None
 
     @staticmethod
+    def detect_language(text: str, default_lang: str = "en-IN") -> str:
+        if re.search(r"[\u0C00-\u0C7F]", text):
+            return "te-IN"
+        if re.search(r"[\u0900-\u097F]", text):
+            return "hi-IN"
+        return default_lang
+
+    @staticmethod
     def detect_intent(text: str) -> str:
         t = text.lower()
         if any(w in t for w in ["umbrella", "raincoat", "rain coat", "need rain", "గొడుగు", "రెయిన్‌కోట్", "छाता"]):
             return "umbrella"
+        if any(w in t for w in ["cold", "colder", "coldest", "cool", "ठंड", "ठंडी", "सर्दी", "చల్లగా", "చలి"]):
+            return "cold_check"
+        if any(w in t for w in ["hot", "hotter", "heat", "warm", "warmer", "गर्म", "गर्मी", "धूप", "వేడిగా", "వేడి", "ఎండ"]):
+            return "heat_check"
         if any(w in t for w in ["rain", "raining", "rainfall", "drizzle", "shower", "వర్షం", "వర్షపాతం", "बारिश", "बरसात"]):
             return "precipitation"
         if any(w in t for w in ["compare", "difference", "versus", "vs", "పోల్చండి", "తారతమ్యం", "तुलना"]):
             return "comparison"
-        if any(w in t for w in ["hot", "cold", "temperature", "degree", "heat", "వేడి", "ఉష్ణోగ్రత", "गर्मी", "तापमान", "ठंड"]):
+        if any(w in t for w in ["temperature", "degree", "temp", "ఉష్ణోగ్రత", "तापमान"]):
             return "temperature"
         if any(w in t for w in ["humidity", "humid", "moisture", "తేమ", "नमी"]):
             return "humidity"
@@ -55,9 +67,9 @@ class AIService:
             return "uv_index"
         if any(w in t for w in ["thunder", "lightning", "storm", "ఉరుములు", "మెరుపులు", "तूफान", "बिजली"]):
             return "thunderstorm"
-        if any(w in t for w in ["college", "school", "travel", "drive", "trip", "going to", "outside", "safe to", "పయనం", "ప్రయాణం", "यात्रा"]):
+        if any(w in t for w in ["college", "school", "travel", "drive", "trip", "going to", "outside", "safe to", "పయనం", "ప్రయాణం", "यात्रा", "घूमने"]):
             return "travel_advisory"
-        if any(w in t for w in ["run", "jog", "walk", "outdoor", "picnic", "cricket", "match", "వాకింగ్", "ఆరుబయట", "सैर"]):
+        if any(w in t for w in ["run", "jog", "walk", "outdoor", "picnic", "cricket", "match", "వాకింగ్", "ఆరుబయట", "सैर", "घूमना"]):
             return "outdoor_activity"
         if any(w in t for w in ["tomorrow", "weekend", "next week", "day after", "రేపు", "कल"]):
             return "forecast"
@@ -66,9 +78,11 @@ class AIService:
     @classmethod
     async def process_chat(cls, request: ChatRequest) -> ChatResponse:
         user_msg = request.message.strip()
-        lang = request.language or "en-IN"
+        
+        # 0. Script-based Auto Language Override (Te/Hi/En)
+        lang = cls.detect_language(user_msg, request.language or "en-IN")
 
-        # 1. Check for explicit location mentioned in user message (e.g. "What's the weather in Vijayawada?")
+        # 1. Check for explicit location mentioned in user message
         extracted_city = cls.extract_location_from_text(user_msg)
         
         target_location: Optional[LocationCoordinates] = None
@@ -89,19 +103,16 @@ class AIService:
                     displayName=best.display_name,
                     source="search"
                 )
-                # Check if explicit city differs from active location
                 active_name = (request.location.city or request.location.name) if request.location else ""
                 if active_name and active_name.lower() != best.name.lower():
                     explicit_override = True
         
         if target_location is None:
-            # Use active saved location from request
             if request.location and request.location.latitude != 0 and request.location.longitude != 0:
                 target_location = request.location
             else:
                 target_location = None
 
-        # STRICT VALIDATION: If no location is set, return Location Required response! Never fall back to Hyderabad!
         if target_location is None:
             return ChatResponse(
                 answer=get_location_required_message(lang),
@@ -110,16 +121,13 @@ class AIService:
                 location=None,
                 weather=None,
                 advisory=None,
-                suggested_followups=[
-                    "Use My Location",
-                    "Search Location"
-                ],
+                suggested_followups=["Use My Location", "Search Location"],
                 is_fallback=False,
                 is_location_required=True,
                 explicit_override=False
             )
 
-        # 2. Get Live Weather Data for target location
+        # 2. Fetch Weather Data
         loc_name = target_location.city or target_location.name or "Selected Location"
         weather_data = await WeatherService.get_forecast(
             latitude=target_location.latitude,
@@ -134,19 +142,27 @@ class AIService:
         # 4. Intent detection
         intent = cls.detect_intent(user_msg)
 
-        # 5. Extract weather parameters
+        # 5. Weather Parameters
         cur = weather_data.current
         hourly = weather_data.hourly
         daily = weather_data.daily
         
         today = daily[0] if len(daily) > 0 else None
-        tomorrow = daily[1] if len(daily) > 1 else daily[0]
+        tomorrow = daily[1] if len(daily) > 1 else (daily[0] if daily else None)
+
+        msg_low = user_msg.lower()
+
+        # Timeframe resolution: tomorrow vs today vs weekend
+        is_tomorrow = any(w in msg_low for w in ["tomorrow", "రేపు", "कल"])
+        is_weekend = any(w in msg_low for w in ["weekend", "వారాంతం", "वीकेंड"])
+
+        target_day = tomorrow if (is_tomorrow and tomorrow) else today
         
-        afternoon_temps = [h.temperature for h in hourly[12:17]] if len(hourly) >= 17 else [cur.temperature]
-        afternoon_max = max(afternoon_temps, default=cur.temperature)
-        
-        night_thunders = any(h.weather_code in [95, 96, 99] for h in hourly[18:24]) if len(hourly) >= 24 else False
-        max_pop_24h = max([h.precipitation_probability for h in hourly[:24]], default=cur.rain_probability)
+        # Telemetry metrics
+        t_max = target_day.temperature_max if target_day else cur.temperature
+        t_min = target_day.temperature_min if target_day else cur.temperature
+        pop_max = target_day.precipitation_probability_max if target_day else cur.rain_probability
+        precip_sum = target_day.precipitation_sum if target_day else cur.precipitation
 
         answer = ""
         suggested_followups: List[str] = []
@@ -155,115 +171,176 @@ class AIService:
         is_hi = lang.startswith("hi")
 
         if is_te:
-            # Telugu Response Generation
-            if intent in ["umbrella", "precipitation"]:
-                pop = max(tomorrow.precipitation_probability_max, max_pop_24h)
-                if pop >= 50:
-                    answer = f"అవును, {loc_name}లో {pop}% వర్షం పడే అవకాశం ఉంది. ఖచ్చితంగా గొడుగు లేదా రెయిన్‌కోట్ తీసుకెళ్లడం మంచిది."
+            # --- TELUGU CONVERSATIONAL REASONING ---
+            if intent == "cold_check":
+                if t_max < 20.0:
+                    answer = f"అవును, {loc_name}లో చల్లగా ఉంటుంది. ఉష్ణోగ్రత కనిష్టం {t_min:.0f}°C మరియు గరిష్టం {t_max:.0f}°C వరకు ఉండవచ్చు."
                 else:
-                    answer = f"నేడు/రేపు {loc_name}లో వర్షం పడే అవకాశం తక్కువ ({pop}%). గొడుగు అవసరం లేదు."
-            elif intent == "travel_advisory":
-                if tomorrow.precipitation_probability_max >= 70 or tomorrow.temperature_max >= 40:
-                    answer = f"{loc_name}కు ప్రయాణం చేసేటప్పుడు జాగ్రత్త వహించండి. వర్ష సూచన {tomorrow.precipitation_probability_max}% మరియు గరిష్ట ఉష్ణోగ్రత {tomorrow.temperature_max}°C."
-                else:
-                    answer = f"{loc_name}లో రేపటి ఉష్ణోగ్రత {tomorrow.temperature_max}°C గా ఉంటుంది. ప్రయాణం చేయడానికి వాతావరణం చాలా అనుకూలంగా ఉంది."
-            elif intent == "temperature":
-                answer = f"{loc_name}లో ప్రస్తుత ఉష్ణోగ్రత {cur.temperature}°C (అనుభూతి {cur.apparent_temperature}°C). నేటి గరిష్ట ఉష్ణోగ్రత {afternoon_max}°C వరకు ఉంటుంది."
-            elif intent == "humidity":
-                answer = f"{loc_name}లో ప్రస్తుత గాలి తేమ శాతం {cur.relative_humidity}%."
-            elif intent == "wind":
-                answer = f"{loc_name}లో గాలి వేగం ప్రస్తుతం గంటకు {cur.wind_speed} కిలోమీటర్లు."
-            elif intent == "uv_index":
-                answer = f"{loc_name}లో యూవీ ఇండెక్స్ {cur.uv_index}. మధ్యాహ్నం 11 నుండి 3 గంటల మధ్య ఎండలో జాగ్రత్తగా ఉండండి."
-            elif intent == "comparison":
-                answer = f"{loc_name}లో నేటి గరిష్ట ఉష్ణోగ్రత {today.temperature_max if today else cur.temperature}°C, కానీ రేపు {tomorrow.temperature_max}°C ఉంటుంది."
-            else:
-                answer = f"{loc_name}లో ప్రస్తుతం వాతావరణం {cur.condition}గా ఉంది. ఉష్ణోగ్రత {cur.temperature}°C, తేమ {cur.relative_humidity}% మరియు గాలి వేగం {cur.wind_speed} కి.మీ/గం."
+                    answer = f"లేదు, {loc_name}లో {'రేపు ' if is_tomorrow else ''}చల్లగా ఉండే అవకాశం లేదు. ఉష్ణోగ్రత సుమారు {t_max:.0f}°C ఉంటుంది, కాబట్టి వాతావరణం వెచ్చగా అనిపించవచ్చు."
             
-            suggested_followups = [
-                "రేపు వర్షం పడుతుందా?",
-                "గొడుగు అవసరమా?",
-                "ఉష్ణోగ్రత ఎంత ఉంటుంది?"
-            ]
-
-        elif is_hi:
-            # Hindi Response Generation
-            if intent in ["umbrella", "precipitation"]:
-                pop = max(tomorrow.precipitation_probability_max, max_pop_24h)
-                if pop >= 50:
-                    answer = f"हां, {loc_name} में बारिश की {pop}% संभावना है। छाता या रेनकोट साथ रखना बेहतर रहेगा।"
+            elif intent == "heat_check":
+                if t_max >= 35.0:
+                    answer = f"అవును, {loc_name}లో {'రేపు ' if is_tomorrow else ''}చాలా వేడిగా ఉంటుంది. గరిష్ట ఉష్ణోగ్రత {t_max:.0f}°C కు చేరుకోవచ్చు. ఎండ దెబ్బ తగలకుండా జాగ్రత్త పడండి."
                 else:
-                    answer = f"{loc_name} में बारिश की संभावना केवल {pop}% है। छाते की आवश्यकता नहीं है।"
+                    answer = f"లేదండీ, {loc_name}లో తీవ్రమైన వేడి లేదు. ఉష్ణోగ్రత సుమారు {t_max:.0f}°C గా ఉంటుంది."
+
+            elif intent in ["umbrella", "precipitation"]:
+                if pop_max >= 45 or precip_sum >= 1.5:
+                    answer = f"అవును, {loc_name}లో {'రేపు ' if is_tomorrow else ''}గొడుగు లేదా రెయిన్‌కోట్ తీసుకెళ్లడం మంచిది. {pop_max:.0f}% వర్షం పడే అవకాశం ఉంది."
+                else:
+                    answer = f"లేదు, {loc_name}లో {'రేపు ' if is_tomorrow else ''}గొడుగు అవసరం లేదు. వర్షం పడే అవకాశం కేవలం {pop_max:.0f}% మాత్రమే ఉంది."
+
             elif intent == "travel_advisory":
-                if tomorrow.precipitation_probability_max >= 70 or tomorrow.temperature_max >= 40:
-                    answer = f"{loc_name} की यात्रा में सावधानी बरतें। भारी बारिश की संभावना ({tomorrow.precipitation_probability_max}%) और तापमान {tomorrow.temperature_max}°C रहेगा।"
+                if pop_max >= 65 or t_max >= 39 or cur.wind_speed >= 30:
+                    answer = f"{loc_name}కు ప్రయాణం చేసేటప్పుడు జాగ్రత్త వహించండి. వర్ష సూచన {pop_max:.0f}% మరియు ఉష్ణోగ్రత {t_max:.0f}°C వరకు ఉంటుంది."
                 else:
-                    answer = f"{loc_name} में कल का तापमान {tomorrow.temperature_max}°C रहेगा। यात्रा के लिए मौसम सामान्य और अनुकूल है।"
-            elif intent == "temperature":
-                answer = f"{loc_name} में अभी तापमान {cur.temperature}°C (महसूस {cur.apparent_temperature}°C) है। दोपहर में {afternoon_max}°C तक पहुंच सकता है।"
-            elif intent == "humidity":
-                answer = f"{loc_name} में वर्तमान नमी (Humidity) {cur.relative_humidity}% है।"
-            elif intent == "wind":
-                answer = f"{loc_name} में हवा की गति {cur.wind_speed} किमी/घंटा है।"
-            elif intent == "uv_index":
-                answer = f"{loc_name} में यूवी इंडेक्स {cur.uv_index} है। दोपहर में धूप से बचाव रखें।"
-            elif intent == "comparison":
-                answer = f"{loc_name} में आज का अधिकतम तापमान {today.temperature_max if today else cur.temperature}°C है, जबकि कल {tomorrow.temperature_max}°C रहने का अनुमान है।"
-            else:
-                answer = f"{loc_name} में वर्तमान में {cur.condition} मौसम है। तापमान {cur.temperature}°C, आर्द्रता {cur.relative_humidity}% और हवा {cur.wind_speed} किमी/घंटा है।"
-
-            suggested_followups = [
-                "क्या कल बारिश होगी?",
-                "क्या छाता चाहिए?",
-                "आज का तापमान कितना है?"
-            ]
-
-        else:
-            # English Response Generation
-            if intent in ["umbrella", "precipitation"]:
-                pop_val = max(tomorrow.precipitation_probability_max, max_pop_24h)
-                precip_val = max(tomorrow.precipitation_sum, cur.precipitation)
-                if pop_val >= 50:
-                    answer = f"Yes, I'd recommend carrying an umbrella or raincoat in {loc_name}. There is a {pop_val}% chance of rain with around {precip_val:.1f} mm expected precipitation."
-                else:
-                    answer = f"No umbrella needed for {loc_name} right now. Rain probability is low at only {pop_val}% with {cur.condition.lower()} conditions."
-            
-            elif intent == "travel_advisory":
-                if tomorrow.precipitation_probability_max >= 70 or tomorrow.temperature_max >= 40:
-                    answer = f"Travel advisory for {loc_name}: Exercise caution. High rain probability ({tomorrow.precipitation_probability_max}%) and temperature peaking at {tomorrow.temperature_max}°C."
-                else:
-                    answer = f"Yes, it's generally safe to travel in {loc_name}! Expect pleasant weather with a high of {tomorrow.temperature_max}°C and moderate wind speed of {cur.wind_speed} km/h."
-
-            elif intent == "temperature":
-                if "afternoon" in user_msg.lower():
-                    answer = f"In {loc_name}, afternoon temperatures will peak around {afternoon_max:.1f}°C (feels like {afternoon_max + 2:.1f}°C)."
-                else:
-                    answer = f"Current temperature in {loc_name} is {cur.temperature:.1f}°C (feels like {cur.apparent_temperature:.1f}°C). Tomorrow's maximum high will reach {tomorrow.temperature_max:.1f}°C."
-
-            elif intent == "humidity":
-                answer = f"Relative humidity in {loc_name} is currently {cur.relative_humidity}% with a dew point suited for comfortable transpiration."
-
-            elif intent == "wind":
-                answer = f"Wind speed in {loc_name} is currently {cur.wind_speed:.1f} km/h blowing from {cur.wind_direction}°."
-
-            elif intent == "uv_index":
-                answer = f"The UV index in {loc_name} is currently {cur.uv_index:.1f} (Peak daily UV: {tomorrow.uv_index_max:.1f}). Consider sunscreen if outdoors between 11 AM and 3 PM."
-
-            elif intent == "thunderstorm":
-                if night_thunders or cur.weather_code in [95, 96, 99]:
-                    answer = f"Warning: Thunderstorm activity is expected in {loc_name}. Stay indoors and avoid open fields."
-                else:
-                    answer = f"No immediate thunderstorm threat for {loc_name}. Thunderstorm probability is low."
+                    answer = f"అవును, {loc_name}లో {'రేపు ' if is_tomorrow else ''}ప్రయాణం చేయడానికి వాతావరణం చాలా అనుకూలంగా ఉంది! ఉష్ణోగ్రత సుమారు {t_max:.0f}°C ఉంటుంది."
 
             elif intent == "outdoor_activity":
-                if cur.rain_probability > 60 or cur.temperature > 38:
-                    answer = f"Outdoor activity notice for {loc_name}: Outdoor plans may be affected by elevated rain chance ({cur.rain_probability}%) or high heat ({cur.temperature}°C)."
+                if pop_max >= 50 or t_max >= 36:
+                    answer = f"{loc_name}లో ఆరుబయట తిరగడం లేదా ఆటలకు వర్షం ({pop_max:.0f}%) లేదా వేడి ({t_max:.0f}°C) వల్ల కొద్దిగా అంతరాయం కలగవచ్చు."
+                else:
+                    answer = f"{loc_name}లో వాతావరణం చాలా ప్రశాంతంగా ఉంది! వాకింగ్ లేదా బయటకు వెళ్లడానికి ఇది సరైన సమయం. ఉష్ణోగ్రత {t_max:.0f}°C."
+
+            elif intent == "comparison":
+                t0 = today.temperature_max if today else cur.temperature
+                t1 = tomorrow.temperature_max if tomorrow else cur.temperature
+                if t1 > t0 + 1:
+                    answer = f"ఈరోజు కంటే రేపు {loc_name}లో కొద్దిగా వేడిగా ఉంటుంది. ఈరోజు గరిష్ట ఉష్ణోగ్రత {t0:.0f}°C కాగా, రేపు {t1:.0f}°C నమోదు కావచ్చు."
+                elif t0 > t1 + 1:
+                    answer = f"ఈరోజు కంటే రేపు {loc_name}లో వాతావరణం చల్లగా ఉంటుంది. ఈరోజు ఉష్ణోగ్రత {t0:.0f}°C కాగా, రేపు {t1:.0f}°C కు పడిపోవచ్చు."
+                else:
+                    answer = f"ఈరోజు మరియు రేపు {loc_name}లో ఉష్ణోగ్రతలు సమానంగా ఉంటాయి (సుమారు {t0:.0f}°C)."
+
+            elif intent == "humidity":
+                answer = f"{loc_name}లో ప్రస్తుత గాలి తేమ శాతం {cur.relative_humidity}%."
+
+            elif intent == "wind":
+                answer = f"{loc_name}లో గాలి వేగం ప్రస్తుతం గంటకు {cur.wind_speed} కిలోమీటర్లు."
+
+            elif intent == "uv_index":
+                answer = f"{loc_name}లో యూవీ ఇండెక్స్ {cur.uv_index}. మధ్యాహ్నం 11 నుండి 3 గంటల మధ్య ఎండలో జాగ్రత్తగా ఉండండి."
+
+            elif intent == "temperature":
+                answer = f"{loc_name}లో ఉష్ణోగ్రత ప్రస్తుతానికి {cur.temperature:.1f}°C (అనుభూతి {cur.apparent_temperature:.1f}°C). {'రేపటి ' if is_tomorrow else 'నేటి '}గరిష్ట ఉష్ణోగ్రత {t_max:.0f}°C వరకు ఉంటుంది."
+
+            else:
+                answer = f"{loc_name}లో ప్రస్తుతం వాతావరణం {cur.condition}గా ఉంది. ఉష్ణోగ్రత {cur.temperature:.1f}°C, తేమ {cur.relative_humidity}% మరియు గాలి వేగం {cur.wind_speed} కి.మీ/గం."
+
+            suggested_followups = ["రేపు వర్షం పడుతుందా?", "గొడుగు అవసరమా?", "ఉష్ణోగ్రత ఎంత ఉంటుంది?"]
+
+        elif is_hi:
+            # --- HINDI CONVERSATIONAL REASONING ---
+            if intent == "cold_check":
+                if t_max < 20.0:
+                    answer = f"हां, {loc_name} में मौसम ठंडा रहेगा। न्यूनतम तापमान {t_min:.0f}°C और अधिकतम {t_max:.0f}°C रहने की संभावना है।"
+                else:
+                    answer = f"नहीं, {loc_name} में {'कल ' if is_tomorrow else ''}ठंड होने की संभावना नहीं है। तापमान लगभग {t_max:.0f}°C रहेगा, इसलिए मौसम गर्म महसूस हो सकता है।"
+
+            elif intent == "heat_check":
+                if t_max >= 35.0:
+                    answer = f"हां, {loc_name} में {'कल ' if is_tomorrow else ''}काफी गर्मी रहेगी। अधिकतम तापमान {t_max:.0f}°C तक पहुंच सकता है। धूप से बचाव रखें।"
+                else:
+                    answer = f"नहीं, {loc_name} में अत्यधिक गर्मी नहीं है। तापमान लगभग {t_max:.0f}°C रहने का अनुमान है।"
+
+            elif intent in ["umbrella", "precipitation"]:
+                if pop_max >= 45 or precip_sum >= 1.5:
+                    answer = f"हां, कल {loc_name} में छाता या रेनकोट साथ रखना बेहतर रहेगा। बारिश की {pop_max:.0f}% संभावना है।"
+                else:
+                    answer = f"नहीं, कल {loc_name} में छाते की आवश्यकता नहीं है। बारिश की संभावना केवल {pop_max:.0f}% है।"
+
+            elif intent == "travel_advisory":
+                if pop_max >= 65 or t_max >= 39 or cur.wind_speed >= 30:
+                    answer = f"{loc_name} की यात्रा में सावधानी बरतें। बारिश की संभावना ({pop_max:.0f}%) और तापमान {t_max:.0f}°C रहेगा।"
+                else:
+                    answer = f"हां, कल {loc_name} में यात्रा करना बिल्कुल ठीक रहेगा! मौसम सुहावना रहेगा और तापमान लगभग {t_max:.0f}°C रहेगा।"
+
+            elif intent == "outdoor_activity":
+                if pop_max >= 50 or t_max >= 36:
+                    answer = f"{loc_name} में बाहर घूमने या खेलकूद में बारिश ({pop_max:.0f}%) या गर्मी ({t_max:.0f}°C) के कारण रुकावट आ सकती है।"
+                else:
+                    answer = f"{loc_name} में मौसम बहुत अच्छा है! टहलने या बाहर जाने के लिए यह सही समय है। तापमान {t_max:.0f}°C है।"
+
+            elif intent == "comparison":
+                t0 = today.temperature_max if today else cur.temperature
+                t1 = tomorrow.temperature_max if tomorrow else cur.temperature
+                if t1 > t0 + 1:
+                    answer = f"कल {loc_name} में आज की तुलना में थोड़ी अधिक गर्मी रहेगी। आज का अधिकतम तापमान {t0:.0f}°C है, जबकि कल {t1:.0f}°C तक पहुंचेगा।"
+                elif t0 > t1 + 1:
+                    answer = f"आज की तुलना में कल {loc_name} में मौसम ठंडा रहेगा। आज का तापमान {t0:.0f}°C है, जबकि कल {t1:.0f}°C रहने का अनुमान है।"
+                else:
+                    answer = f"आज और कल {loc_name} में तापमान लगभग समान रहेगा (लगभग {t0:.0f}°C)।"
+
+            elif intent == "humidity":
+                answer = f"{loc_name} में वर्तमान नमी (Humidity) {cur.relative_humidity}% है।"
+
+            elif intent == "wind":
+                answer = f"{loc_name} में हवा की गति {cur.wind_speed} किमी/घंटा है।"
+
+            elif intent == "uv_index":
+                answer = f"{loc_name} में यूवी इंडेक्स {cur.uv_index} है। दोपहर में धूप से बचाव रखें।"
+
+            elif intent == "temperature":
+                answer = f"{loc_name} में अभी तापमान {cur.temperature:.1f}°C (महसूस {cur.apparent_temperature:.1f}°C) है। {'कल का ' if is_tomorrow else 'आज का '}अधिकतम तापमान {t_max:.0f}°C रहेगा।"
+
+            else:
+                answer = f"{loc_name} में वर्तमान में {cur.condition} मौसम है। तापमान {cur.temperature:.1f}°C, आर्द्रता {cur.relative_humidity}% और हवा {cur.wind_speed} किमी/घंटा है।"
+
+            suggested_followups = ["क्या कल बारिश होगी?", "क्या छाता चाहिए?", "आज का तापमान कितना है?"]
+
+        else:
+            # --- ENGLISH CONVERSATIONAL REASONING ---
+            if intent == "cold_check":
+                if t_max < 20.0:
+                    answer = f"Yes, it will be cold in {loc_name}{' tomorrow' if is_tomorrow else ''}. Low temperature will drop to {t_min:.0f}°C with a high of {t_max:.0f}°C."
+                else:
+                    answer = f"No, {'tomorrow is' if is_tomorrow else 'it is'} not expected to be cold in {loc_name}. The temperature will be around {t_max:.0f}°C, so it will feel warm."
+
+            elif intent == "heat_check":
+                if t_max >= 35.0:
+                    answer = f"Yes, it will be hot in {loc_name}{' tomorrow' if is_tomorrow else ''}. Expect temperatures peaking around {t_max:.0f}°C. Take precautions against sun exposure."
+                else:
+                    answer = f"No, severe heat is not expected in {loc_name}. The high temperature will reach a comfortable {t_max:.0f}°C."
+
+            elif intent in ["umbrella", "precipitation"]:
+                if pop_max >= 45 or precip_sum >= 1.5:
+                    answer = f"Yes, I recommend carrying an umbrella or raincoat in {loc_name}{' tomorrow' if is_tomorrow else ''}. There is a {pop_max:.0f}% chance of rain with expected precipitation."
+                else:
+                    answer = f"No umbrella needed in {loc_name}{' tomorrow' if is_tomorrow else ''}. Rain probability is low at only {pop_max:.0f}% with {cur.condition.lower()} conditions."
+
+            elif intent == "travel_advisory":
+                if pop_max >= 65 or t_max >= 39 or cur.wind_speed >= 30:
+                    answer = f"Travel caution advised for {loc_name}: Rain probability is {pop_max:.0f}% with temperatures peaking at {t_max:.0f}°C."
+                else:
+                    answer = f"Yes, {'tomorrow' if is_tomorrow else 'it'} is great for travelling in {loc_name}! Expect pleasant weather with a high of {t_max:.0f}°C."
+
+            elif intent == "outdoor_activity":
+                if pop_max >= 50 or t_max >= 36:
+                    answer = f"Outdoor activities in {loc_name} may be affected by rain risk ({pop_max:.0f}%) or warm temperatures ({t_max:.0f}°C)."
                 else:
                     answer = f"Conditions in {loc_name} are great for outdoor activities, runs, or walks! Temperature is {cur.temperature:.1f}°C with light breeze."
 
             elif intent == "comparison":
-                t_today = today.temperature_max if today else cur.temperature
-                answer = f"In {loc_name}, today's maximum temperature is {t_today:.1f}°C compared to tomorrow's expected high of {tomorrow.temperature_max:.1f}°C with a {tomorrow.precipitation_probability_max}% chance of rain."
+                t0 = today.temperature_max if today else cur.temperature
+                t1 = tomorrow.temperature_max if tomorrow else cur.temperature
+                if t1 > t0 + 1:
+                    answer = f"Tomorrow will be slightly warmer than today in {loc_name}. Today's high is {t0:.0f}°C, while tomorrow will reach {t1:.0f}°C."
+                elif t0 > t1 + 1:
+                    answer = f"Tomorrow will be cooler than today in {loc_name}. Today's high reaches {t0:.0f}°C compared to tomorrow's expected {t1:.0f}°C."
+                else:
+                    answer = f"Temperatures in {loc_name} today and tomorrow will be similar around {t0:.0f}°C."
+
+            elif intent == "humidity":
+                answer = f"Relative humidity in {loc_name} is currently {cur.relative_humidity}%."
+
+            elif intent == "wind":
+                answer = f"Wind speed in {loc_name} is currently {cur.wind_speed:.1f} km/h."
+
+            elif intent == "uv_index":
+                answer = f"The UV index in {loc_name} is currently {cur.uv_index:.1f}. Sunscreen is recommended between 11 AM and 3 PM."
+
+            elif intent == "temperature":
+                answer = f"In {loc_name}, current temperature is {cur.temperature:.1f}°C (feels like {cur.apparent_temperature:.1f}°C). {'Tomorrow' if is_tomorrow else 'Today'}'s maximum high will reach {t_max:.0f}°C."
 
             else:
                 answer = f"Weather in {loc_name} is currently {cur.condition.lower()} at {cur.temperature:.1f}°C (feels like {cur.apparent_temperature:.1f}°C). Humidity is {cur.relative_humidity}% with {cur.wind_speed} km/h wind."
@@ -281,7 +358,7 @@ class AIService:
             "condition": cur.condition,
             "humidity": cur.relative_humidity,
             "wind_speed": cur.wind_speed,
-            "rain_probability": max_pop_24h,
+            "rain_probability": pop_max,
             "uv_index": cur.uv_index
         }
 
@@ -297,3 +374,4 @@ class AIService:
             is_location_required=False,
             explicit_override=explicit_override
         )
+
