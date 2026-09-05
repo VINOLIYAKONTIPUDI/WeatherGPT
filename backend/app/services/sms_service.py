@@ -9,9 +9,19 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 import httpx
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from backend directory or project root
+_backend_env = Path(__file__).resolve().parent.parent.parent / ".env"
+_root_env = Path(__file__).resolve().parent.parent.parent.parent / ".env"
+if _backend_env.exists():
+    load_dotenv(dotenv_path=_backend_env)
+elif _root_env.exists():
+    load_dotenv(dotenv_path=_root_env)
+else:
+    load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 FAST2SMS_API_KEY = os.getenv("FAST2SMS_API_KEY", "")
@@ -110,7 +120,8 @@ class SMSService:
                             "sid": f"SM_{int(datetime.now().timestamp()*1000)}_{phone[-4:]}",
                             "mode": "SIMULATED_FALLBACK"
                         })
-        elif FAST2SMS_API_KEY:
+        fast2sms_key = os.getenv("FAST2SMS_API_KEY", "").strip()
+        if not live_sent and fast2sms_key:
             fast2sms_url = "https://www.fast2sms.com/dev/bulkV2"
             clean_numbers = [p.replace("+91", "").replace(" ", "").replace("-", "")[-10:] for p in recipients]
             try:
@@ -118,7 +129,7 @@ class SMSService:
                     resp = await client.post(
                         fast2sms_url,
                         headers={
-                            "authorization": FAST2SMS_API_KEY,
+                            "authorization": fast2sms_key,
                             "Content-Type": "application/json"
                         },
                         json={
@@ -129,7 +140,7 @@ class SMSService:
                             "numbers": ",".join(clean_numbers)
                         }
                     )
-                    res_data = resp.json() if resp.status_code == 200 else {}
+                    res_data = resp.json() if resp.status_code in [200, 400] else {}
                     if resp.status_code == 200 and res_data.get("return"):
                         live_sent = True
                         for p in recipients:
@@ -140,7 +151,9 @@ class SMSService:
                                 "mode": "LIVE_FAST2SMS"
                             })
                     else:
-                        logger.warning(f"[SMSService] Fast2SMS error: {resp.text}")
+                        err_msg = res_data.get("message", resp.text)
+                        logger.warning(f"[SMSService] Fast2SMS gateway returned: {err_msg}")
+                        print(f"  ℹ️  Fast2SMS Gateway Note: {err_msg}")
             except Exception as e:
                 logger.error(f"[SMSService] Fast2SMS dispatch exception: {e}")
 
