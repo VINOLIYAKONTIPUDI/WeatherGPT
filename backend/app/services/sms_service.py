@@ -14,15 +14,16 @@ from dotenv import load_dotenv
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+FAST2SMS_API_KEY = os.getenv("FAST2SMS_API_KEY", "")
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
 TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "")
 
-# Default emergency group numbers for testing/judging demonstrations
+# Default emergency group numbers for testing & live demonstrations
 DEFAULT_EMERGENCY_GROUP = [
+    "+917993678737",
     "+919876543210",
-    "+919848022338",
-    "+919440123456"
+    "+919848022338"
 ]
 
 class SMSService:
@@ -109,7 +110,41 @@ class SMSService:
                             "sid": f"SM_{int(datetime.now().timestamp()*1000)}_{phone[-4:]}",
                             "mode": "SIMULATED_FALLBACK"
                         })
-        else:
+        elif FAST2SMS_API_KEY:
+            fast2sms_url = "https://www.fast2sms.com/dev/bulkV2"
+            clean_numbers = [p.replace("+91", "").replace(" ", "").replace("-", "")[-10:] for p in recipients]
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(
+                        fast2sms_url,
+                        headers={
+                            "authorization": FAST2SMS_API_KEY,
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "route": "q",
+                            "message": sms_body,
+                            "language": "english",
+                            "flash": 0,
+                            "numbers": ",".join(clean_numbers)
+                        }
+                    )
+                    res_data = resp.json() if resp.status_code == 200 else {}
+                    if resp.status_code == 200 and res_data.get("return"):
+                        live_sent = True
+                        for p in recipients:
+                            dispatched_details.append({
+                                "phone": p,
+                                "status": "DELIVERED",
+                                "sid": f"F2S_{int(datetime.now().timestamp()*1000)}",
+                                "mode": "LIVE_FAST2SMS"
+                            })
+                    else:
+                        logger.warning(f"[SMSService] Fast2SMS error: {resp.text}")
+            except Exception as e:
+                logger.error(f"[SMSService] Fast2SMS dispatch exception: {e}")
+
+        if not live_sent and not dispatched_details:
             # Simulated Hackathon Broadcast Mode (Zero Cost, 100% Reliable Demo)
             for phone in recipients:
                 dispatched_details.append({
