@@ -9,6 +9,7 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
   const [language, setLanguage] = useState(defaultLanguage);
   const [hasSpeechSupport, setHasSpeechSupport] = useState(true);
   const [availableVoices, setAvailableVoices] = useState([]);
+  const [hasNativeVoice, setHasNativeVoice] = useState(true);
 
   const recognitionRef = useRef(null);
   const synthRef = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
@@ -29,6 +30,21 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
       synthRef.current.onvoiceschanged = updateVoices;
     }
   }, []);
+
+  // Check if native voice is available for active language (e.g. te-IN, hi-IN, en-IN)
+  useEffect(() => {
+    if (!synthRef.current) return;
+    const voices = availableVoices.length > 0 ? availableVoices : synthRef.current.getVoices();
+    if (!voices || voices.length === 0) return;
+
+    const langPrefix = language.split('-')[0].toLowerCase();
+    const found = voices.some(v => 
+      v.lang.toLowerCase().replace('_', '-').startsWith(language.toLowerCase()) ||
+      v.lang.toLowerCase().replace('_', '-').startsWith(langPrefix) ||
+      v.name.toLowerCase().includes(langPrefix === 'te' ? 'telugu' : (langPrefix === 'hi' ? 'hindi' : 'english'))
+    );
+    setHasNativeVoice(found);
+  }, [language, availableVoices]);
 
   // Initialize SpeechRecognition instance
   useEffect(() => {
@@ -274,6 +290,7 @@ export function useVoiceAssistant(defaultLanguage = 'en-IN') {
     setLanguage,
     hasSpeechSupport,
     availableVoices,
+    hasNativeVoice,
     startListening,
     stopListening,
     speak,

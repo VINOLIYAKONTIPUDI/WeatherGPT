@@ -24,7 +24,8 @@ export default function VoiceAssistant({
     stopSpeaking,
     replaySpeech,
     clearTranscript,
-    resetState
+    resetState,
+    hasNativeVoice
   } = useVoiceAssistant(language);
 
   const [textInput, setTextInput] = useState('');
@@ -154,6 +155,15 @@ export default function VoiceAssistant({
             </button>
           </div>
         </div>
+
+        {/* Missing Native Voice Warning Notice */}
+        {!hasNativeVoice && (language === 'te-IN' || language === 'hi-IN') && (
+          <div className="mb-4 text-center relative z-10">
+            <span className="text-[11px] text-amber-300 font-semibold bg-amber-500/10 border border-amber-500/30 px-3.5 py-1.5 rounded-full inline-flex items-center gap-1.5">
+              🌐 No native {language === 'te-IN' ? 'Telugu (te-IN)' : 'Hindi (hi-IN)'} speech voice installed in browser/OS. Complete text answer is displayed below.
+            </span>
+          </div>
+        )}
 
         {/* Central Microphone Visual & Controls */}
         <div className="flex flex-col items-center justify-center my-6 relative z-10">
