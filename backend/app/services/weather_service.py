@@ -1,7 +1,7 @@
 import httpx
 import logging
-from typing import Dict, Any, Optional
-from datetime import datetime
+from typing import Dict, Any, Optional, List, Tuple
+from datetime import datetime, date
 from app.models.schemas import (
     LocationCoordinates, WeatherCurrent, HourlyForecastItem,
     DailyForecastItem, WeatherForecastResponse
@@ -43,6 +43,10 @@ WMO_CODE_MAP = {
 
 def get_weather_condition(code: int) -> str:
     return WMO_CODE_MAP.get(code, "Partly Cloudy")
+
+# In-memory LRU Cache with composite keys: "location_lat_lon|start_date|end_date|type"
+_WEATHER_CACHE: Dict[str, Tuple[datetime, Any]] = {}
+CACHE_TTL_SECONDS = 600  # 10 minutes
 
 class WeatherService:
     @staticmethod
@@ -255,3 +259,127 @@ class WeatherService:
         except Exception as e:
             logger.warning(f"Error fetching live forecast: {e}. Falling back to demo data.")
             return cls.get_fallback_data(location_obj)
+
+    @classmethod
+    async def get_weather_for_date_range(
+        cls,
+        latitude: float,
+        longitude: float,
+        start_date: str, # YYYY-MM-DD
+        end_date: Optional[str] = None, # YYYY-MM-DD
+        timezone: str = "Asia/Kolkata",
+        location_name: str = "Selected Location"
+    ) -> Dict[str, Any]:
+        """
+        Fetches exact Open-Meteo weather data (historical or forecast) for explicit date or date range.
+        Enforces strict date matching & composite caching key.
+        """
+        if not end_date:
+            end_date = start_date
+
+        cache_key = f"{round(latitude,3)}_{round(longitude,3)}|{start_date}|{end_date}|{timezone}"
+        now_time = datetime.now()
+        if cache_key in _WEATHER_CACHE:
+            ts, cached_data = _WEATHER_CACHE[cache_key]
+            if (now_time - ts).total_seconds() < CACHE_TTL_SECONDS:
+                logger.info(f"Returning cached Open-Meteo date range data for {cache_key}")
+                return cached_data
+
+        url = "https://api.open-meteo.com/v1/forecast"
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "start_date": start_date,
+            "end_date": end_date,
+            "hourly": [
+                "temperature_2m", "relative_humidity_2m", "apparent_temperature",
+                "precipitation_probability", "precipitation", "weather_code",
+                "wind_speed_10m", "uv_index"
+            ],
+            "daily": [
+                "weather_code", "temperature_2m_max", "temperature_2m_min",
+                "precipitation_sum", "precipitation_probability_max",
+                "uv_index_max", "wind_speed_10m_max", "sunrise", "sunset"
+            ],
+            "timezone": timezone
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, params=params)
+                if response.status_code != 200:
+                    logger.warning(f"Open-Meteo API status {response.status_code} for {start_date} to {end_date}.")
+                    return {"error": f"Open-Meteo returned status {response.status_code}", "is_available": False}
+
+                data = response.json()
+                
+                d_data = data.get("daily", {})
+                d_dates = d_data.get("time", [])
+
+                # VALIDATION: Check that returned dates match requested start_date
+                if not d_dates or start_date not in d_dates:
+                    logger.warning(f"Returned dates {d_dates} do not contain requested start_date {start_date}")
+                    return {"error": "Weather data unavailable for requested date", "is_available": False}
+
+                # Extract daily metrics
+                daily_items = []
+                for idx, dt_str in enumerate(d_dates):
+                    code = int(d_data["weather_code"][idx]) if "weather_code" in d_data and idx < len(d_data["weather_code"]) else 0
+                    daily_items.append({
+                        "date": dt_str,
+                        "temperature_max": float(d_data["temperature_2m_max"][idx]) if "temperature_2m_max" in d_data else 30.0,
+                        "temperature_min": float(d_data["temperature_2m_min"][idx]) if "temperature_2m_min" in d_data else 22.0,
+                        "precipitation_sum": float(d_data["precipitation_sum"][idx]) if "precipitation_sum" in d_data else 0.0,
+                        "precipitation_probability_max": int(d_data["precipitation_probability_max"][idx]) if ("precipitation_probability_max" in d_data and d_data["precipitation_probability_max"][idx] is not None) else 0,
+                        "weather_code": code,
+                        "condition": get_weather_condition(code),
+                        "uv_index_max": float(d_data["uv_index_max"][idx]) if ("uv_index_max" in d_data and d_data["uv_index_max"][idx] is not None) else 5.0,
+                        "wind_speed_max": float(d_data["wind_speed_10m_max"][idx]) if ("wind_speed_10m_max" in d_data and d_data["wind_speed_10m_max"][idx] is not None) else 10.0,
+                    })
+
+                # Extract hourly metrics
+                hourly_items = []
+                h_data = data.get("hourly", {})
+                h_times = h_data.get("time", [])
+                h_temps = h_data.get("temperature_2m", [])
+                h_app_temps = h_data.get("apparent_temperature", [])
+                h_pops = h_data.get("precipitation_probability", [])
+                h_precips = h_data.get("precipitation", [])
+                h_humids = h_data.get("relative_humidity_2m", [])
+                h_winds = h_data.get("wind_speed_10m", [])
+                h_codes = h_data.get("weather_code", [])
+
+                for i in range(len(h_times)):
+                    dt_full = h_times[i] # YYYY-MM-DDTHH:MM
+                    time_only = dt_full.split("T")[-1][:5] if "T" in dt_full else f"{i:02d}:00"
+                    hour_num = int(time_only.split(":")[0])
+                    code = int(h_codes[i]) if i < len(h_codes) else 0
+
+                    hourly_items.append({
+                        "datetime": dt_full,
+                        "time": time_only,
+                        "hour": hour_num,
+                        "temperature": float(h_temps[i]) if i < len(h_temps) else 25.0,
+                        "apparent_temperature": float(h_app_temps[i]) if i < len(h_app_temps) else 26.0,
+                        "precipitation_probability": int(h_pops[i]) if (i < len(h_pops) and h_pops[i] is not None) else 0,
+                        "precipitation": float(h_precips[i]) if (i < len(h_precips) and h_precips[i] is not None) else 0.0,
+                        "humidity": int(h_humids[i]) if (i < len(h_humids) and h_humids[i] is not None) else 60,
+                        "wind_speed": float(h_winds[i]) if i < len(h_winds) else 10.0,
+                        "condition": get_weather_condition(code)
+                    })
+
+                result = {
+                    "location_name": location_name,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "is_available": True,
+                    "daily": daily_items,
+                    "hourly": hourly_items
+                }
+
+                _WEATHER_CACHE[cache_key] = (now_time, result)
+                return result
+
+        except Exception as e:
+            logger.error(f"Failed to fetch date range weather: {e}")
+            return {"error": str(e), "is_available": False}
