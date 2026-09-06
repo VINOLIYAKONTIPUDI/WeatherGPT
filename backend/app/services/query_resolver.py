@@ -206,7 +206,13 @@ class QueryResolver:
                     intent = "historical" if days_ahead < 0 else ("current" if days_ahead == 0 else "forecast")
                     return (d.strftime("%Y-%m-%d"), None, intent, day_name.capitalize())
 
-        # 8. Next week / వచ్చే వారం / अगले हफ्ते
+        # 8. Last week / గత వారం / पिछले हफ्ते
+        if any(w in q for w in ["last week", "గత వారం", "పోయిన వారం", "पिछले हफ्ते", "पिछले सप्ताह"]):
+            start_d = ref - timedelta(days=7)
+            end_d = ref - timedelta(days=1)
+            return (start_d.strftime("%Y-%m-%d"), end_d.strftime("%Y-%m-%d"), "historical", "Last Week")
+
+        # 9. Next week / వచ్చే వారం / अगले हफ्ते
         if any(w in q for w in ["next week", "వచ్చే వారం", "अगले हफ्ते", "अगले सप्ताह"]):
             start_d = ref + timedelta(days=1)
             end_d = ref + timedelta(days=7)

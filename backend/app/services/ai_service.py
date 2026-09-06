@@ -16,27 +16,40 @@ logger = logging.getLogger(__name__)
 class AIService:
     @staticmethod
     def extract_location_from_text(text: str) -> Optional[str]:
-        text_lower = text.lower()
+        text_lower = text.lower().strip()
         
         cities = [
             "Hyderabad", "Vijayawada", "Delhi", "Mumbai", "Bengaluru", "Bangalore",
             "Tadepalligudem", "Chennai", "Kolkata", "Visakhapatnam", "Vizag", "Pune",
             "Jaipur", "Ahmedabad", "Lucknow", "Bhimavaram", "Guntur", "Tirupati",
             "Kakinada", "Rajahmundry", "Nellore", "Anantapur", "Warangal", "Surat", "Patna",
-            "Chinamiram", "Pedda Amiram"
+            "Chinamiram", "Chinammiram", "Pedda Amiram"
         ]
         for c in cities:
-            if c.lower() in text_lower:
+            if re.search(rf'\b{re.escape(c.lower())}\b', text_lower):
                 if c.lower() == "bangalore": return "Bengaluru"
                 if c.lower() == "vizag": return "Visakhapatnam"
+                if c.lower() == "chinammiram": return "Chinamiram"
                 return c
-        
-        in_match = re.search(r'\b(?:in|at|for|near|of|around)\s+([a-zA-Z\s]+?)(?:\s+today|\s+tomorrow|\s+yesterday|\s+this|\s+now|\?|\.|$|,)', text, re.IGNORECASE)
+
+        in_match = re.search(r'\b(?:in|at|for|near|of|around)\s+([a-zA-Z\s]+?)(?:\s+today|\s+tomorrow|\s+yesterday|\s+this|\s+now|\?|\.|$|,)', text_lower)
         if in_match:
             candidate = in_match.group(1).strip()
-            ignored = ["the", "my area", "here", "college", "work", "office", "home", "india", "my location", "location", "area"]
-            if candidate and candidate.lower() not in ignored and len(candidate) > 2:
-                return candidate.title()
+            ignored_words = {
+                "the", "my area", "here", "college", "work", "office", "home", "india",
+                "my location", "location", "area", "morning", "afternoon", "evening", "night",
+                "the morning", "the evening", "the night", "the afternoon",
+                "today", "tomorrow", "yesterday", "day", "days", "week", "weeks", "month",
+                "year", "general", "detail", "details", "summary", "short", "now", "this",
+                "next", "last", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+                "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
+                "weather", "temperature", "rain", "rainfall", "humidity", "wind", "uv", "degree", "degrees",
+                "celsius", "fahrenheit", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "6 pm", "10 am", "am", "pm"
+            }
+            if candidate and candidate not in ignored_words and len(candidate) > 2:
+                time_keywords = ["morning", "evening", "night", "afternoon", "day", "week", "month", "year", "pm", "am", "clock"]
+                if not any(tk in candidate for tk in time_keywords):
+                    return candidate.title()
                 
         return None
 
