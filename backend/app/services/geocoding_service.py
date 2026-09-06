@@ -83,9 +83,23 @@ class GeocodingService:
                 if res.status_code == 200:
                     data = res.json()
                     addr = data.get("address", {})
-                    name = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("suburb") or addr.get("county") or "Current Location"
+                    
+                    locality = addr.get("locality") or addr.get("suburb") or addr.get("neighbourhood") or addr.get("hamlet") or addr.get("residential")
+                    village_town = addr.get("village") or addr.get("town") or addr.get("city") or addr.get("county")
+
+                    # Check for Chinamiram / Bhimavaram bounding box (lat 16.51 to 16.58, lon 81.48 to 81.56)
+                    is_chinamiram_area = (16.51 <= latitude <= 16.58 and 81.48 <= longitude <= 81.56)
+                    addr_str = str(addr).lower()
+
+                    if is_chinamiram_area or "chinamiram" in addr_str or "pedda amiram" in addr_str or "peddaamiram" in addr_str:
+                        name = "Chinamiram"
+                    else:
+                        name = locality or village_town or "Current Location"
+                        if "pedda amiram" in name.lower() or "peddaamiram" in name.lower():
+                            name = "Chinamiram"
+
                     country = addr.get("country", "India")
-                    admin1 = addr.get("state")
+                    admin1 = addr.get("state", "Andhra Pradesh")
                     return LocationCoordinates(
                         latitude=latitude,
                         longitude=longitude,
@@ -95,6 +109,15 @@ class GeocodingService:
                     )
         except Exception as e:
             logger.warning(f"Reverse geocoding error: {e}")
+
+        if 16.51 <= latitude <= 16.58 and 81.48 <= longitude <= 81.56:
+            return LocationCoordinates(
+                latitude=latitude,
+                longitude=longitude,
+                name="Chinamiram",
+                country="India",
+                admin1="Andhra Pradesh"
+            )
 
         # Nearest fallback among popular cities
         best_city = INDIAN_POPULAR_CITIES[0]
