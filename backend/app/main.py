@@ -1,8 +1,13 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import weather, chat, alerts, location, auth, notifications
 from app.db.mongodb import connect_to_mongo, close_mongo_connection
 from app.services.notification_scheduler import start_scheduler, stop_scheduler
+
 
 app = FastAPI(
     title="WeatherGPT API",
