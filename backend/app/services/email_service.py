@@ -44,9 +44,9 @@ class EmailService:
         """
 
         # ALWAYS log OTP prominently in console for local debugging & testing
-        print("\n" + "="*60)
-        print(f"  🔑 VERIFICATION OTP FOR {recipient_email}: [{otp}] (Expires in 5 minutes)")
-        print("="*60 + "\n")
+        logger.info("\n" + "="*60)
+        logger.info(f"  [OTP] VERIFICATION OTP FOR {recipient_email}: [{otp}] (Expires in 5 minutes)")
+        logger.info("="*60 + "\n")
 
         # If SMTP server credentials are provided, send live email
         if settings.SMTP_USERNAME and settings.SMTP_PASSWORD and settings.SMTP_SERVER:
@@ -134,10 +134,10 @@ class EmailService:
         </html>
         """
 
-        print("\n" + "="*60)
-        print(f"  📩 SCHEDULED EMAIL SENT TO {recipient_email} [{location_name} - {notif_type.upper()}]")
-        print(f"  Temperature: {temp}°C | Rain Chance: {pop}% | Condition: {condition}")
-        print("="*60 + "\n")
+        logger.info("\n" + "="*60)
+        logger.info(f"  [EMAIL] SCHEDULED EMAIL SENT TO {recipient_email} [{location_name} - {notif_type.upper()}]")
+        logger.info(f"  Temperature: {temp}C | Rain Chance: {pop}% | Condition: {condition}")
+        logger.info("="*60 + "\n")
 
         if settings.SMTP_USERNAME and settings.SMTP_PASSWORD and settings.SMTP_SERVER:
             try:
@@ -222,10 +222,10 @@ class EmailService:
         </html>
         """
 
-        print("\n" + "="*60)
-        print(f"  🚨 EMERGENCY SEVERE WEATHER EMAIL DISPATCHED TO {recipient_email}")
-        print(f"  Location: {location_name} | Risk: {risk_score}% ({risk_level})")
-        print("="*60 + "\n")
+        logger.info("\n" + "="*60)
+        logger.info(f"  [ALERT] EMERGENCY SEVERE WEATHER EMAIL DISPATCHED TO {recipient_email}")
+        logger.info(f"  Location: {location_name} | Risk: {risk_score}% ({risk_level})")
+        logger.info("="*60 + "\n")
 
         if settings.SMTP_USERNAME and settings.SMTP_PASSWORD and settings.SMTP_SERVER:
             try:

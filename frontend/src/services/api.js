@@ -66,15 +66,29 @@ export async function reverseGeocode(lat, lon) {
 }
 
 // Authentication API Services
+async function parseJsonResponse(res, fallbackMessage = 'Request failed') {
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    if (!res.ok) {
+      throw new Error(`Server Error (${res.status}): ${res.statusText || 'Internal Server Error'}`);
+    }
+    throw new Error('Invalid server response');
+  }
+  if (!res.ok) {
+    throw new Error(data?.detail || fallbackMessage);
+  }
+  return data;
+}
+
 export async function signupUser(name, email, password, confirm_password) {
   const res = await fetch(`${API_BASE}/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, email, password, confirm_password }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Signup failed.');
-  return data;
+  return await parseJsonResponse(res, 'Signup failed.');
 }
 
 export async function verifyOTP(email, otp) {
@@ -83,9 +97,7 @@ export async function verifyOTP(email, otp) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, otp }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'OTP Verification failed.');
-  return data;
+  return await parseJsonResponse(res, 'OTP Verification failed.');
 }
 
 export async function resendOTP(email) {
@@ -94,9 +106,7 @@ export async function resendOTP(email) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Failed to resend OTP.');
-  return data;
+  return await parseJsonResponse(res, 'Failed to resend OTP.');
 }
 
 export async function loginUser(email, password) {
@@ -105,9 +115,7 @@ export async function loginUser(email, password) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Login failed.');
-  return data;
+  return await parseJsonResponse(res, 'Login failed.');
 }
 
 export async function getCurrentUser(token) {
@@ -116,9 +124,7 @@ export async function getCurrentUser(token) {
       'Authorization': `Bearer ${token}`
     },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Invalid token.');
-  return data;
+  return await parseJsonResponse(res, 'Invalid token.');
 }
 
 export async function fetchCropAdvisory(crop, stage, weatherData = null) {
@@ -151,9 +157,7 @@ export async function scheduleNotification(token, targetDate, targetTime, type, 
       location
     }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Failed to schedule notification.');
-  return data;
+  return await parseJsonResponse(res, 'Failed to schedule notification.');
 }
 
 export async function fetchNotifications(token) {
@@ -162,9 +166,7 @@ export async function fetchNotifications(token) {
       'Authorization': `Bearer ${token}`
     },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Failed to fetch notifications.');
-  return data;
+  return await parseJsonResponse(res, 'Failed to fetch notifications.');
 }
 
 export async function deleteNotification(token, notifId) {
@@ -174,9 +176,7 @@ export async function deleteNotification(token, notifId) {
       'Authorization': `Bearer ${token}`
     },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Failed to delete notification.');
-  return data;
+  return await parseJsonResponse(res, 'Failed to delete notification.');
 }
 
 
